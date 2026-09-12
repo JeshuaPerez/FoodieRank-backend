@@ -101,28 +101,52 @@ scripts/
 
 ---
 
-## Principios aplicados
+## Patrones de diseño aplicados
 
-**Separación por capas.** Cada petición recorre ruta → controlador → servicio →
-repositorio. El controlador no sabe de MongoDB y el repositorio no sabe de HTTP,
-así que una regla de negocio se cambia en un solo archivo.
+Cuatro patrones, a propósito. Cada uno resuelve un problema concreto del
+proyecto; agregar más capas de patrones solo habría hecho el código más difícil
+de seguir.
 
-**Patrón Repository.** La carpeta `repositories/` aísla el driver de MongoDB del
-resto del código. `BaseRepository` concentra el CRUD genérico —`findAll`,
-`findById`, `findOne`, `create`, `update`, `delete`, `count`— y cada entidad
-hereda y añade solo sus consultas propias. Gracias a eso seis entidades no
-repiten el mismo CRUD, y todos los métodos aceptan una `session` opcional, que es
-lo que permite usarlos dentro de una transacción.
+**MVC.** La estructura que pide la guía. La ruta recibe la petición y valida, el
+controlador traduce entre HTTP y el negocio, el servicio aplica las reglas y el
+modelo define la forma de los datos. El controlador no sabe de MongoDB y el
+repositorio no sabe de HTTP, así que una regla de negocio se cambia en un solo
+archivo.
 
-**Inyección de dependencias.** La conexión se abre una sola vez en `server.js` y
-se pasa hacia abajo: `crearApp(db)` → `crearRutas(db)` → repositorios →
-servicios → controladores. Ningún módulo abre su propia conexión, y `app.js`
-puede montarse en pruebas sin levantar el puerto.
+**Repository.** La carpeta `repositories/` aísla el driver de MongoDB del resto
+del código. `BaseRepository` concentra el CRUD genérico —`findAll`, `findById`,
+`findOne`, `create`, `update`, `delete`, `count`— y cada entidad hereda y añade
+solo sus consultas propias: seis entidades sin repetir el mismo CRUD. Todos los
+métodos aceptan una `session` opcional, que es lo que permite usarlos dentro de
+una transacción. Es también la razón de que exista esta carpeta, que no está en
+la lista de la guía: sin ella, cada servicio tendría el driver de MongoDB
+incrustado.
 
-**Modelo como contrato, no como ORM.** Sin mongoose, cada archivo de `models/`
-define la forma del documento, sus valores por defecto, la normalización previa
-al guardado y la función que decide qué campos salen hacia el cliente. La
-contraseña nunca está en esa lista.
+**DTO.** Sin mongoose, cada archivo de `models/` define la forma del documento,
+sus valores por defecto y la normalización previa al guardado. Las funciones
+`usuarioPublico`, `restaurantePublico`, `resenaPublica` y sus hermanas son los
+DTO de salida: deciden qué campos viajan al cliente. La contraseña no está en
+ninguna de esas listas.
+
+**Factory.** Las funciones que construyen y devuelven algo ya configurado:
+`crearApp(db, client)` arma la aplicación, `crearRutas(db, client)` arma la
+cadena completa de repositorios, servicios y controladores, cada
+`crear*Router(controlador)` arma su router, y `crearTransaccion(client)` devuelve
+la función que ejecuta algo dentro de una transacción. Del lado de los datos,
+`nuevoUsuario`, `nuevaResena` y compañía construyen el documento con sus valores
+por defecto.
+
+**Singleton de módulo.** `config/db.js` crea un único `MongoClient` y `config/env.js`
+lee el `.env` una sola vez. Todo el proyecto comparte esas dos instancias sin
+volver a conectarse ni a leer variables.
+
+### Además
+
+**Una sola conexión, inyectada hacia abajo.** `server.js` abre la conexión y la
+pasa: `crearApp(db, client)` → `crearRutas(db, client)` → repositorios →
+servicios → controladores. Ningún módulo abre la suya ni la busca en un global,
+y `app.js` se puede montar en pruebas sin levantar el puerto. `routes/index.js`
+es el único archivo que instancia clases.
 
 **Errores centralizados.** Los servicios lanzan `AppError(mensaje, codigo)` y un
 único middleware al final de la cadena lo traduce a respuesta HTTP. Express 5

@@ -19,14 +19,14 @@ process.env.BCRYPT_ROUNDS = '4';
 
 const jwt = (await import('jsonwebtoken')).default;
 const env = (await import('../src/config/env.js')).default;
-const { pool, cerrarConexion } = await import('../src/config/db.js');
+const { pool, getClient, cerrarConexion } = await import('../src/config/db.js');
 const crearIndices = (await import('../src/config/indexes.js')).default;
 const crearApp = (await import('../src/app.js')).default;
 
 const db = await pool();
 await crearIndices(db);
 
-const servidor = crearApp(db).listen(0);
+const servidor = crearApp(db, getClient()).listen(0);
 const base = `http://127.0.0.1:${servidor.address().port}/api`;
 
 let pasadas = 0;
