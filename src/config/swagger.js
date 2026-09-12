@@ -668,5 +668,4 @@ const montarSwagger = (app) => {
     app.get('/api/docs.json', (req, res) => res.json(documento));
 };
 
-export { documento };
 export default montarSwagger;
