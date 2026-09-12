@@ -1,0 +1,16 @@
+# Dependencias de Node (creadas al hacer npm install)
+node_modules/
+
+# Variables de entorno y credenciales
+.env
+.env.local
+.env.*.local
+
+# Archivos de registro / Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
