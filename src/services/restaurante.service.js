@@ -1,6 +1,6 @@
 import AppError from '../utils/app-error.js';
 import { normalizar } from '../utils/texto.js';
-import { nuevoRestaurante, restaurantePublico } from '../models/restaurante.model.js';
+import { nuevoRestaurante, restaurantePublico, esVisiblePara } from '../models/restaurante.model.js';
 import { platoPublico } from '../models/plato.model.js';
 import { resenaPublica } from '../models/resena.model.js';
 
@@ -50,11 +50,11 @@ export default class RestauranteService {
         const restaurante = await this.#restauranteRepo.findDetalle(id);
         if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
 
-        const esAdmin = usuario?.rol === 'admin';
-        const esAutor = usuario && restaurante.creadoPor?.equals(usuario._id);
-        if (!restaurante.aprobado && !esAdmin && !esAutor) {
+        if (!esVisiblePara(restaurante, usuario)) {
             throw new AppError('Restaurante no encontrado.', 404);
         }
+
+        const esAdmin = usuario?.rol === 'admin';
 
         const [platos, resenas] = await Promise.all([
             this.#platoRepo.findByRestaurante(restaurante._id, { aprobado: esAdmin ? undefined : true }),

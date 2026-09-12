@@ -16,6 +16,8 @@ process.env.CORS_ORIGIN = `${ORIGEN},http://127.0.0.1:5500`;
 process.env.RATE_LIMIT_MAX = '100000';
 process.env.AUTH_RATE_LIMIT_MAX = '5';
 process.env.BCRYPT_ROUNDS = '4';
+// Corto para que las pruebas de caída de base no tarden 10 segundos cada una
+process.env.DB_SELECTION_TIMEOUT_MS = '2000';
 
 const jwt = (await import('jsonwebtoken')).default;
 const env = (await import('../src/config/env.js')).default;
@@ -286,6 +288,31 @@ verificar('un filtro por categoría inexistente devuelve total 0',
 verificar('una categoría con id inválido responde 400',
     (await pedir('GET', '/restaurantes?categoria=abc')).status === 400);
 
+// Va al final a propósito: después de tumbar la base no se puede probar nada más
+console.log('\n== Caída de la base de datos ==');
+const saludAntes = await pedir('GET', '/health');
+verificar('con la base arriba, health responde 200 y conexión activa',
+    saludAntes.status === 200 && saludAntes.cuerpo.datos.conexion === 'activa');
+
+await replica.stop();
+
+const saludDespues = await pedir('GET', '/health');
+verificar('con la base caída, health responde 503', saludDespues.status === 503, `(status ${saludDespues.status})`);
+verificar('health reporta que no hay conexión', saludDespues.cuerpo?.datos?.conexion === 'sin conexión');
+
+const sinBase = await pedir('GET', '/restaurantes');
+verificar('una consulta sin base responde 503 y no 500', sinBase.status === 503, `(status ${sinBase.status})`);
+verificar('el 503 explica que la base no está disponible',
+    /base de datos no está disponible/i.test(sinBase.cuerpo?.mensaje ?? ''), `(mensaje: ${sinBase.cuerpo?.mensaje})`);
+verificar('el 503 sigue siendo JSON y no tumba el servidor', typeof sinBase.cuerpo?.status === 'string');
+
+// Por una ruta que no pasa por el limitador de /auth, ya agotado más arriba
+const escrituraSinBase = await pedir('POST', '/resenas', {
+    token: tokenUno,
+    body: { restauranteId, comentario: 'Intento de escribir sin base de datos.', calificacion: 4 }
+});
+verificar('una escritura sin base responde 503 y no 500', escrituraSinBase.status === 503, `(status ${escrituraSinBase.status})`);
+
 console.log(`\n${'='.repeat(50)}`);
 console.log(`Pruebas superadas: ${pasadas}`);
 if (fallos.length) {
@@ -294,7 +321,8 @@ if (fallos.length) {
 }
 console.log('='.repeat(50));
 
+// La réplica ya se detuvo en la última sección, así que el cierre puede fallar
 servidor.close();
-await cerrarConexion();
-await replica.stop();
+await cerrarConexion().catch(() => {});
+await replica.stop().catch(() => {});
 process.exit(fallos.length ? 1 : 0);

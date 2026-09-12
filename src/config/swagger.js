@@ -178,6 +178,7 @@ const documento = {
             get: {
                 tags: ['Sistema'],
                 summary: 'Estado del servicio y versión del API',
+                description: 'Comprueba la conexión con la base de datos. Responde 503 si no está disponible.',
                 parameters: [{
                     name: 'v',
                     in: 'query',
@@ -186,7 +187,10 @@ const documento = {
                     example: '1.0.0',
                     description: 'Versión del cliente. Si se envía, la respuesta indica si es compatible.'
                 }],
-                responses: { 200: respuesta('API operativa') }
+                responses: {
+                    200: respuesta('API operativa y con conexión a la base de datos'),
+                    503: error('Sin conexión a la base de datos', 'API sin conexión a la base de datos.')
+                }
             }
         },
         '/auth/registro': {

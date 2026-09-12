@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, param } from 'express-validator';
 import validar from '../middlewares/validacion.middleware.js';
-import { requireAuth, requireAdmin } from '../middlewares/auth.middleware.js';
+import { requireAuth, requireAdmin, optionalAuth } from '../middlewares/auth.middleware.js';
 
 // Los platos se crean y listan desde /restaurantes/:id/platos. Aquí quedan las
 // operaciones sobre un plato que ya existe.
@@ -18,7 +18,7 @@ const validarEdicion = [
 const crearPlatoRouter = (controller) => {
     const router = Router();
 
-    router.get('/:id', validarId, validar, controller.obtener);
+    router.get('/:id', optionalAuth, validarId, validar, controller.obtener);
     router.put('/:id', requireAuth, requireAdmin, validarEdicion, validar, controller.actualizar);
     router.patch('/:id/aprobar', requireAuth, requireAdmin, validarId, validar, controller.aprobar);
     router.delete('/:id', requireAuth, requireAdmin, validarId, validar, controller.eliminar);

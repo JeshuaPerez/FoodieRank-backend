@@ -24,4 +24,10 @@ const platoPublico = (plato) => plato && ({
     creadoEn: plato.creadoEn
 });
 
-export { nuevoPlato, platoPublico };
+// Mismo criterio que en restaurantes: un plato pendiente no es público
+const platoVisiblePara = (plato, usuario = null) =>
+    plato.aprobado
+    || usuario?.rol === 'admin'
+    || Boolean(usuario && plato.creadoPor?.equals(usuario._id));
+
+export { nuevoPlato, platoPublico, platoVisiblePara };

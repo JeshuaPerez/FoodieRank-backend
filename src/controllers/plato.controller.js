@@ -19,7 +19,7 @@ export default class PlatoController {
     }
 
     async obtener(req, res) {
-        const plato = await this.#platoService.obtener(req.params.id);
+        const plato = await this.#platoService.obtener(req.params.id, req.usuario);
         enviar(res, 200, 'Plato obtenido.', plato);
     }
 

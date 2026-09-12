@@ -1,6 +1,7 @@
 import AppError from '../utils/app-error.js';
 import { normalizar } from '../utils/texto.js';
-import { nuevoPlato, platoPublico } from '../models/plato.model.js';
+import { nuevoPlato, platoPublico, platoVisiblePara } from '../models/plato.model.js';
+import { esVisiblePara } from '../models/restaurante.model.js';
 
 export default class PlatoService {
     #platoRepo;
@@ -15,6 +16,11 @@ export default class PlatoService {
         const restaurante = await this.#restauranteRepo.findById(restauranteId);
         if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
 
+        // Si el restaurante está pendiente, sus platos tampoco son públicos
+        if (!esVisiblePara(restaurante, usuario)) {
+            throw new AppError('Restaurante no encontrado.', 404);
+        }
+
         const esAdmin = usuario?.rol === 'admin';
         const platos = await this.#platoRepo.findByRestaurante(restaurante._id, {
             aprobado: esAdmin ? undefined : true
@@ -22,9 +28,17 @@ export default class PlatoService {
         return platos.map(platoPublico);
     }
 
-    async obtener(id) {
+    async obtener(id, usuario = null) {
         const plato = await this.#platoRepo.findById(id);
         if (!plato) throw new AppError('Plato no encontrado.', 404);
+        if (!platoVisiblePara(plato, usuario)) throw new AppError('Plato no encontrado.', 404);
+
+        // Un plato aprobado de un restaurante pendiente sigue sin ser público
+        const restaurante = await this.#restauranteRepo.findById(plato.restauranteId);
+        if (!restaurante || !esVisiblePara(restaurante, usuario)) {
+            throw new AppError('Plato no encontrado.', 404);
+        }
+
         return platoPublico(plato);
     }
 

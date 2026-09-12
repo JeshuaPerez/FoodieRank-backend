@@ -1,6 +1,16 @@
 import AppError from '../utils/app-error.js';
 import env from '../config/env.js';
 
+// Fallos de conexión con la base de datos: no son culpa de la petición, así que
+// se responden como servicio no disponible y no como error interno.
+const ERRORES_DE_CONEXION = [
+    'MongoNetworkError',
+    'MongoNetworkTimeoutError',
+    'MongoServerSelectionError',
+    'MongoTopologyClosedError',
+    'MongoNotConnectedError'
+];
+
 const noEncontrado = (req, res, next) =>
     next(new AppError(`La ruta ${req.method} ${req.originalUrl} no existe.`, 404));
 
@@ -9,6 +19,7 @@ const noEncontrado = (req, res, next) =>
 const manejadorErrores = (err, req, res, next) => {
     let statusCode = err.statusCode ?? 500;
     let mensaje = err.esOperacional ? err.message : 'Error interno del servidor.';
+    let esDeConexion = false;
 
     // Índice único violado: el duplicado lo detectó la base de datos
     if (err.code === 11000) {
@@ -33,7 +44,16 @@ const manejadorErrores = (err, req, res, next) => {
         mensaje = 'Identificador inválido.';
     }
 
-    if (statusCode >= 500) console.error('|--> Error no controlado:', err);
+    if (ERRORES_DE_CONEXION.includes(err.name)) {
+        statusCode = 503;
+        mensaje = 'La base de datos no está disponible en este momento. Intenta de nuevo en unos segundos.';
+        esDeConexion = true;
+        console.error(`|--> Conexión con la base de datos perdida: ${err.message}`);
+    }
+
+    // El de conexión ya se registró arriba con una línea clara; no hace falta
+    // volcar todo el error
+    if (statusCode >= 500 && !esDeConexion) console.error('|--> Error no controlado:', err);
 
     res.status(statusCode).json({
         status: 'fail',
