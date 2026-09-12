@@ -113,6 +113,7 @@ export default class RestauranteService {
         if (datos.imagen !== undefined) cambios.imagen = datos.imagen?.trim() || null;
 
         const actualizado = await this.#restauranteRepo.update(id, cambios);
+        if (!actualizado) throw new AppError('Restaurante no encontrado.', 404);
         return restaurantePublico(actualizado);
     }
 
@@ -121,6 +122,7 @@ export default class RestauranteService {
         if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
 
         const actualizado = await this.#restauranteRepo.update(id, { aprobado });
+        if (!actualizado) throw new AppError('Restaurante no encontrado.', 404);
         return restaurantePublico(actualizado);
     }
 
@@ -131,11 +133,15 @@ export default class RestauranteService {
         if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
 
         await enTransaccion(async (session) => {
+            // Igual que en las reseñas: si el borrado no afectó nada, otra
+            // petición llegó primero y esta no debe responder como exitosa.
+            const borrado = await this.#restauranteRepo.delete(restaurante._id, { session });
+            if (!borrado) throw new AppError('Restaurante no encontrado.', 404);
+
             const resenas = await this.#resenaRepo.findAll({ restauranteId: restaurante._id }, { session });
             await this.#reaccionRepo.deleteByResenas(resenas.map((resena) => resena._id), { session });
             await this.#resenaRepo.deleteByRestaurante(restaurante._id, { session });
             await this.#platoRepo.deleteByRestaurante(restaurante._id, { session });
-            await this.#restauranteRepo.delete(restaurante._id, { session });
         });
     }
 }

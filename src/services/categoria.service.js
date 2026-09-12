@@ -46,6 +46,7 @@ export default class CategoriaService {
         if (datos.descripcion !== undefined) cambios.descripcion = datos.descripcion.trim();
 
         const actualizada = await this.#categoriaRepo.update(id, cambios);
+        if (!actualizada) throw new AppError('Categoría no encontrada.', 404);
         return categoriaPublica(actualizada);
     }
 
@@ -59,7 +60,8 @@ export default class CategoriaService {
             throw new AppError(`La categoría tiene ${enUso} restaurante(s) asociado(s) y no se puede eliminar.`, 409);
         }
 
-        await this.#categoriaRepo.delete(id);
+        const borrada = await this.#categoriaRepo.delete(id);
+        if (!borrada) throw new AppError('Categoría no encontrada.', 404);
     }
 
     // Se usa al crear o editar restaurantes

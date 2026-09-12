@@ -16,6 +16,18 @@ const manejadorErrores = (err, req, res, next) => {
         mensaje = 'El registro ya existe.';
     }
 
+    // Errores de body-parser: el cuerpo llegó ilegible o demasiado grande. Traen
+    // su código correcto pero el mensaje en inglés, y el frontend lo muestra.
+    if (err.type === 'entity.parse.failed') {
+        statusCode = 400;
+        mensaje = 'El cuerpo de la petición no es un JSON válido.';
+    }
+
+    if (err.type === 'entity.too.large') {
+        statusCode = 413;
+        mensaje = 'El cuerpo de la petición es demasiado grande.';
+    }
+
     if (err.name === 'BSONError') {
         statusCode = 400;
         mensaje = 'Identificador inválido.';
