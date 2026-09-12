@@ -1,5 +1,4 @@
 import AppError from '../utils/app-error.js';
-import enTransaccion from '../utils/transaccion.js';
 import { nuevaResena, resenaPublica } from '../models/resena.model.js';
 import { nuevaReaccion } from '../models/reaccion.model.js';
 
@@ -12,13 +11,15 @@ export default class ResenaService {
     #restauranteRepo;
     #moderacionRepo;
     #ranking;
+    #enTransaccion;
 
-    constructor(resenaRepo, reaccionRepo, restauranteRepo, moderacionRepo, ranking) {
+    constructor(resenaRepo, reaccionRepo, restauranteRepo, moderacionRepo, ranking, enTransaccion) {
         this.#resenaRepo = resenaRepo;
         this.#reaccionRepo = reaccionRepo;
         this.#restauranteRepo = restauranteRepo;
         this.#moderacionRepo = moderacionRepo;
         this.#ranking = ranking;
+        this.#enTransaccion = enTransaccion;
     }
 
     async listarPorRestaurante(restauranteId, usuario = null) {
@@ -40,7 +41,7 @@ export default class ResenaService {
             throw new AppError('El restaurante está pendiente de aprobación y no admite reseñas.', 409);
         }
 
-        return await enTransaccion(async (session) => {
+        return await this.#enTransaccion(async (session) => {
             const existente = await this.#resenaRepo.findByUsuarioYRestaurante(usuario._id, restaurante._id, { session });
             if (existente) throw new AppError('Ya has reseñado este restaurante.', 409);
 
@@ -61,7 +62,7 @@ export default class ResenaService {
             throw new AppError('Solo el autor puede editar su reseña.', 403);
         }
 
-        return await enTransaccion(async (session) => {
+        return await this.#enTransaccion(async (session) => {
             const cambios = { editadoEn: new Date() };
             if (datos.comentario !== undefined) cambios.comentario = datos.comentario.trim();
             if (datos.calificacion !== undefined) cambios.calificacion = Number(datos.calificacion);
@@ -87,7 +88,7 @@ export default class ResenaService {
             throw new AppError('No tienes permiso para eliminar esta reseña.', 403);
         }
 
-        await enTransaccion(async (session) => {
+        await this.#enTransaccion(async (session) => {
             // El borrado manda: si dos peticiones llegan juntas (doble clic), solo
             // la que realmente borra sigue adelante. La otra responde 404 y no
             // duplica el registro de moderación.
@@ -122,7 +123,7 @@ export default class ResenaService {
             throw new AppError('No puedes reaccionar a tu propia reseña.', 403);
         }
 
-        return await enTransaccion(async (session) => {
+        return await this.#enTransaccion(async (session) => {
             const existente = await this.#reaccionRepo.findByUsuarioYResena(usuario._id, resena._id, { session });
             const contadores = { likes: 0, dislikes: 0 };
             let miReaccion = tipo;

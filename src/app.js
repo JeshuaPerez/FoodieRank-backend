@@ -11,7 +11,7 @@ import AppError from './utils/app-error.js';
 
 // Solo arma la aplicación: no abre puertos ni conexiones. Eso es de server.js,
 // y así la app se puede montar en pruebas sin levantar nada.
-const crearApp = (db) => {
+const crearApp = (db, client) => {
     const app = express();
     const passport = configurarPassport(db);
 
@@ -39,7 +39,7 @@ const crearApp = (db) => {
     app.use(verificarVersion);
 
     montarSwagger(app);
-    app.use('/api', crearRutas(db));
+    app.use('/api', crearRutas(db, client));
 
     // El orden importa: primero el 404, al final el manejador de errores
     app.use(noEncontrado);
