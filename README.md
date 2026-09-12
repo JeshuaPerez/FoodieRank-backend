@@ -6,7 +6,7 @@ estrellas y reaccionan a las reseñas de otros; un administrador gestiona las
 categorías y aprueba lo que se publica. El ranking de cada restaurante se calcula
 combinando calificaciones, likes/dislikes y la fecha de cada reseña.
 
-Repositorio del frontend: _pendiente de enlazar_
+Repositorio del frontend: https://github.com/JeshuaPerez/FoodieRank-frontend
 
 ---
 
