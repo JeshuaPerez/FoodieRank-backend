@@ -21,6 +21,7 @@ export default {
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1d',
     bcryptRondas: Number(process.env.BCRYPT_ROUNDS ?? 12),
+    serverSelectionTimeoutMS: Number(process.env.DB_SELECTION_TIMEOUT_MS ?? 10000),
     corsOrigin: lista(process.env.CORS_ORIGIN),
     rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 900000),
     rateLimitMax: Number(process.env.RATE_LIMIT_MAX ?? 100),

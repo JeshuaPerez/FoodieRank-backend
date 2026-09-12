@@ -67,6 +67,7 @@ El servidor queda en `http://localhost:3000/api` y la documentación en
 | `PORT` | Puerto del servidor (por defecto 3000) |
 | `MONGODB_URI` | Cadena de conexión. **Obligatoria** |
 | `DB_NAME` | Nombre de la base de datos. **Obligatoria** |
+| `DB_SELECTION_TIMEOUT_MS` | Cuánto espera el driver antes de dar la conexión por perdida (10000 por defecto) |
 | `JWT_SECRET` | Secreto para firmar los tokens. **Obligatoria** |
 | `JWT_EXPIRES_IN` | Vigencia del token (`1d` por defecto) |
 | `BCRYPT_ROUNDS` | Rondas de hash (12 por defecto) |
@@ -211,6 +212,16 @@ platos, sus reseñas y las reacciones de esas reseñas.
 **Moderación con registro.** Un administrador puede borrar la reseña de
 cualquiera. Cuando lo hace, queda constancia en la colección `moderaciones` con
 el autor original, el administrador responsable, el contenido y la fecha.
+
+**Ante una caída de la base de datos.** El driver reintenta por su cuenta las
+lecturas y escrituras que puede reintentar, y `withTransaction` repite la
+transacción completa si el fallo es transitorio. Cuando la conexión de verdad no
+está, la respuesta es **503** con un mensaje que lo dice, no un 500 genérico, y
+`GET /api/health` hace un ping real a la base: si no responde, el endpoint
+devuelve 503 y `conexion: "sin conexión"`. El límite de espera del driver está
+en 10 segundos en lugar de los 30 por defecto, para que una caída falle rápido en
+vez de dejar la petición colgada; el precio es que un cambio de primario que
+tarde más de eso se vería como error en lugar de resolverse solo.
 
 **Versionado semver.** La versión vive en `package.json` y es la única fuente de
 verdad: se expone en `GET /api/health` y en Swagger. El cliente puede enviar la
@@ -419,6 +430,16 @@ fetch(url, { method: 'POST', body: new URLSearchParams(new FormData(formulario))
 - Los campos numéricos pueden ir como texto (`"5"`, `"38000"`), que es lo que
   entrega un `input`. Un campo `imagen` vacío también se acepta y se guarda como
   `null`.
+- **Los comentarios de las reseñas se devuelven tal como los escribió el usuario**,
+  sin escapar: el backend no decide cómo se pintan. Al mostrarlos hay que usar
+  `elemento.textContent = resena.comentario`, nunca `innerHTML`, o un comentario
+  con HTML dentro se ejecuta en la página.
+- Un **503** significa que la API está arriba pero sin base de datos. Conviene
+  tratarlo distinto de un 500: reintentar en unos segundos en lugar de mostrar
+  "error del servidor".
+- Si el backend se despliega detrás de un proxy o túnel, hay que activar
+  `app.set('trust proxy', 1)`; si no, el límite de peticiones cuenta a todos los
+  visitantes como una sola IP.
 
 ---
 

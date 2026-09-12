@@ -1,6 +1,7 @@
 import AppError from '../utils/app-error.js';
 import { nuevaResena, resenaPublica } from '../models/resena.model.js';
 import { nuevaReaccion } from '../models/reaccion.model.js';
+import { esVisiblePara } from '../models/restaurante.model.js';
 
 // like suma en likes, dislike en dislikes
 const campoContador = (tipo) => (tipo === 'like' ? 'likes' : 'dislikes');
@@ -25,6 +26,12 @@ export default class ResenaService {
     async listarPorRestaurante(restauranteId, usuario = null) {
         const restaurante = await this.#restauranteRepo.findById(restauranteId);
         if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+
+        // Mismo criterio que el detalle: si el restaurante está pendiente, sus
+        // reseñas tampoco se listan
+        if (!esVisiblePara(restaurante, usuario)) {
+            throw new AppError('Restaurante no encontrado.', 404);
+        }
 
         const resenas = await this.#resenaRepo.findByRestaurante(restaurante._id, {
             usuarioId: usuario?._id ?? null
