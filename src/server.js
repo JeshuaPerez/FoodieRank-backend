@@ -1,5 +1,5 @@
 import env from './config/env.js';
-import { pool, cerrarConexion } from './config/db.js';
+import { pool, getClient, cerrarConexion } from './config/db.js';
 import crearIndices from './config/indexes.js';
 import crearApp from './app.js';
 
@@ -7,7 +7,7 @@ const iniciar = async () => {
     const db = await pool();
     await crearIndices(db);
 
-    const app = crearApp(db);
+    const app = crearApp(db, getClient());
     const servidor = app.listen(env.puerto, () => {
         console.log(`|--> FoodieRank API v${env.version} corriendo en http://localhost:${env.puerto}/api`);
         console.log(`|--> Documentación disponible en http://localhost:${env.puerto}/api/docs`);

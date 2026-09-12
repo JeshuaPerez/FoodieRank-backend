@@ -1,5 +1,4 @@
 import AppError from '../utils/app-error.js';
-import enTransaccion from '../utils/transaccion.js';
 import { normalizar } from '../utils/texto.js';
 import { nuevoRestaurante, restaurantePublico } from '../models/restaurante.model.js';
 import { platoPublico } from '../models/plato.model.js';
@@ -14,15 +13,15 @@ export default class RestauranteService {
     #resenaRepo;
     #reaccionRepo;
     #categoriaService;
-    #ranking;
+    #enTransaccion;
 
-    constructor(restauranteRepo, platoRepo, resenaRepo, reaccionRepo, categoriaService, ranking) {
+    constructor(restauranteRepo, platoRepo, resenaRepo, reaccionRepo, categoriaService, enTransaccion) {
         this.#restauranteRepo = restauranteRepo;
         this.#platoRepo = platoRepo;
         this.#resenaRepo = resenaRepo;
         this.#reaccionRepo = reaccionRepo;
         this.#categoriaService = categoriaService;
-        this.#ranking = ranking;
+        this.#enTransaccion = enTransaccion;
     }
 
     async listar(query = {}, usuario = null) {
@@ -132,7 +131,7 @@ export default class RestauranteService {
         const restaurante = await this.#restauranteRepo.findById(id);
         if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
 
-        await enTransaccion(async (session) => {
+        await this.#enTransaccion(async (session) => {
             // Igual que en las reseñas: si el borrado no afectó nada, otra
             // petición llegó primero y esta no debe responder como exitosa.
             const borrado = await this.#restauranteRepo.delete(restaurante._id, { session });
