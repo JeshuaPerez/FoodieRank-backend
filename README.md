@@ -101,17 +101,17 @@ scripts/
 
 ---
 
-## Patrones de diseño aplicados
+## Arquitectura y patrones de diseño
 
-Cuatro patrones, a propósito. Cada uno resuelve un problema concreto del
-proyecto; agregar más capas de patrones solo habría hecho el código más difícil
-de seguir.
+La arquitectura es **MVC**, la que pide la guía: la ruta recibe la petición y
+valida, el controlador traduce entre HTTP y el negocio, el servicio aplica las
+reglas y el modelo define la forma de los datos. El controlador no sabe de
+MongoDB y el repositorio no sabe de HTTP, así que una regla de negocio se cambia
+en un solo archivo.
 
-**MVC.** La estructura que pide la guía. La ruta recibe la petición y valida, el
-controlador traduce entre HTTP y el negocio, el servicio aplica las reglas y el
-modelo define la forma de los datos. El controlador no sabe de MongoDB y el
-repositorio no sabe de HTTP, así que una regla de negocio se cambia en un solo
-archivo.
+Sobre esa base hay cuatro patrones, a propósito. Cada uno resuelve un problema
+concreto del proyecto; apilar más patrones solo habría hecho el código más
+difícil de seguir y de explicar.
 
 **Repository.** La carpeta `repositories/` aísla el driver de MongoDB del resto
 del código. `BaseRepository` concentra el CRUD genérico —`findAll`, `findById`,
