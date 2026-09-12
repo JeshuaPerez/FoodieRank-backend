@@ -3,7 +3,6 @@ import { normalizar } from '../utils/texto.js';
 import { nuevoRestaurante, restaurantePublico } from '../models/restaurante.model.js';
 import { platoPublico } from '../models/plato.model.js';
 import { resenaPublica } from '../models/resena.model.js';
-import BaseRepository from '../repositories/base.repository.js';
 
 const LIMITE_MAXIMO = 50;
 
@@ -36,7 +35,7 @@ export default class RestauranteService {
 
         const { documentos, total } = await this.#restauranteRepo.listar({
             busqueda: query.busqueda,
-            categoriaId: BaseRepository.aObjectId(query.categoria),
+            categoriaId: query.categoria,
             orden: query.orden,
             pagina,
             limite,
@@ -71,14 +70,16 @@ export default class RestauranteService {
 
     // El admin crea ya aprobado; un usuario normal deja la entrada pendiente
     async crear(datos, usuario) {
-        await this.#categoriaService.verificarExiste(datos.categoriaId);
+        // verificarExiste devuelve la categoría, así que el id ya viene de la capa
+        // de datos y el servicio no tiene que convertir nada
+        const categoria = await this.#categoriaService.verificarExiste(datos.categoriaId);
 
         if (await this.#restauranteRepo.findByNombre(normalizar(datos.nombre))) {
             throw new AppError('Ya existe un restaurante con ese nombre.', 409);
         }
 
         const documento = nuevoRestaurante(
-            { ...datos, categoriaId: BaseRepository.aObjectId(datos.categoriaId) },
+            { ...datos, categoriaId: categoria._id },
             usuario._id,
             usuario.rol === 'admin'
         );
@@ -103,8 +104,8 @@ export default class RestauranteService {
         }
 
         if (datos.categoriaId !== undefined) {
-            await this.#categoriaService.verificarExiste(datos.categoriaId);
-            cambios.categoriaId = BaseRepository.aObjectId(datos.categoriaId);
+            const categoria = await this.#categoriaService.verificarExiste(datos.categoriaId);
+            cambios.categoriaId = categoria._id;
         }
 
         if (datos.descripcion !== undefined) cambios.descripcion = datos.descripcion.trim();
