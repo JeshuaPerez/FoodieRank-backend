@@ -3,7 +3,12 @@
 import { MongoClient } from 'mongodb';
 import env from './env.js';
 
-const client = new MongoClient(env.mongodbUri);
+// Sin este límite el driver espera 30 segundos antes de rendirse, y durante una
+// caída de red cada petición se queda colgada todo ese tiempo. El reintento
+// automático de lecturas y escrituras viene activado por defecto.
+const client = new MongoClient(env.mongodbUri, {
+    serverSelectionTimeoutMS: env.serverSelectionTimeoutMS
+});
 let db = null;
 
 const pool = async () => {

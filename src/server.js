@@ -3,6 +3,9 @@ import { pool, getClient, cerrarConexion } from './config/db.js';
 import crearIndices from './config/indexes.js';
 import crearApp from './app.js';
 
+// Si el cierre se queda esperando conexiones abiertas, se fuerza la salida
+const ESPERA_MAXIMA_DE_CIERRE_MS = 10000;
+
 const iniciar = async () => {
     const db = await pool();
     await crearIndices(db);
@@ -13,17 +16,40 @@ const iniciar = async () => {
         console.log(`|--> Documentación disponible en http://localhost:${env.puerto}/api/docs`);
     });
 
+    let cerrando = false;
+
     // Cierre ordenado: primero deja de aceptar peticiones, después suelta Mongo
-    const apagar = (senal) => {
-        console.log(`\n|--> Señal ${senal} recibida, cerrando el servidor...`);
+    const apagar = (motivo, codigo = 0) => {
+        if (cerrando) return;
+        cerrando = true;
+        console.log(`\n|--> ${motivo}, cerrando el servidor...`);
+
+        const forzarSalida = setTimeout(() => {
+            console.error('|--> El cierre tardó demasiado, se fuerza la salida.');
+            process.exit(1);
+        }, ESPERA_MAXIMA_DE_CIERRE_MS);
+
         servidor.close(async () => {
-            await cerrarConexion();
-            process.exit(0);
+            clearTimeout(forzarSalida);
+            await cerrarConexion().catch(() => {});
+            process.exit(codigo);
         });
     };
 
-    process.on('SIGINT', () => apagar('SIGINT'));
-    process.on('SIGTERM', () => apagar('SIGTERM'));
+    process.on('SIGINT', () => apagar('Señal SIGINT recibida'));
+    process.on('SIGTERM', () => apagar('Señal SIGTERM recibida'));
+
+    // Sin estos dos, un fallo fuera del ciclo de una petición termina el proceso
+    // sin dejar rastro de qué ocurrió.
+    process.on('unhandledRejection', (razon) => {
+        console.error('|--> Promesa rechazada sin manejar:', razon);
+        apagar('Promesa rechazada sin manejar', 1);
+    });
+
+    process.on('uncaughtException', (error) => {
+        console.error('|--> Excepción no capturada:', error);
+        apagar('Excepción no capturada', 1);
+    });
 };
 
 iniciar().catch((error) => {

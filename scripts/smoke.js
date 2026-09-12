@@ -306,6 +306,46 @@ verificar('la cascada borró sus platos', (await db.collection('platos').countDo
     && (await pedir('GET', `/platos/${platoId}`)).status === 404);
 verificar('la cascada borró sus reseñas', (await db.collection('resenas').countDocuments({})) === 0);
 
+console.log('\n== Contenido pendiente de aprobación ==');
+const pendiente = await pedir('POST', '/restaurantes', {
+    token: tokenUno,
+    body: { nombre: 'Pendiente De Aprobacion', descripcion: 'Propuesto por un usuario, sin aprobar.', categoriaId, ubicacion: 'Calle 2 #3-4' }
+});
+const pendienteId = pendiente.cuerpo.datos.id;
+
+const platoDeAprobado = await pedir('POST', `/restaurantes/${pendienteId}/platos`, {
+    token: tokenAdmin, body: { nombre: 'Plato de un pendiente', precio: 1000 }
+});
+verificar('los platos de un restaurante pendiente no son públicos',
+    (await pedir('GET', `/restaurantes/${pendienteId}/platos`)).status === 404);
+verificar('las reseñas de un restaurante pendiente no son públicas',
+    (await pedir('GET', `/restaurantes/${pendienteId}/resenas`)).status === 404);
+verificar('el detalle de un plato de un restaurante pendiente no es público',
+    (await pedir('GET', `/platos/${platoDeAprobado.cuerpo.datos.id}`)).status === 404);
+
+const platoPendiente = await pedir('POST', `/restaurantes/${pendienteId}/platos`, {
+    token: tokenUno, body: { nombre: 'Plato propuesto por usuario', precio: 2000 }
+});
+verificar('un plato propuesto queda pendiente', platoPendiente.cuerpo.datos.aprobado === false);
+verificar('un plato pendiente no es público',
+    (await pedir('GET', `/platos/${platoPendiente.cuerpo.datos.id}`)).status === 404);
+verificar('quien lo propuso sí ve su plato pendiente',
+    (await pedir('GET', `/platos/${platoPendiente.cuerpo.datos.id}`, { token: tokenUno })).status === 200);
+verificar('el admin ve el plato pendiente',
+    (await pedir('GET', `/platos/${platoPendiente.cuerpo.datos.id}`, { token: tokenAdmin })).status === 200);
+verificar('quien lo propuso ve su restaurante pendiente',
+    (await pedir('GET', `/restaurantes/${pendienteId}`, { token: tokenUno })).status === 200);
+verificar('un tercero no ve el restaurante pendiente',
+    (await pedir('GET', `/restaurantes/${pendienteId}`, { token: tokenDos })).status === 404);
+
+await pedir('PATCH', `/restaurantes/${pendienteId}/aprobar`, { token: tokenAdmin });
+verificar('aprobado el restaurante, sus platos ya son públicos',
+    (await pedir('GET', `/restaurantes/${pendienteId}/platos`)).status === 200);
+verificar('el plato aprobado ya es público',
+    (await pedir('GET', `/platos/${platoDeAprobado.cuerpo.datos.id}`)).status === 200);
+verificar('el plato que sigue pendiente no aparece en el listado público',
+    !(await pedir('GET', `/restaurantes/${pendienteId}/platos`)).cuerpo.datos.some((p) => p.nombre === 'Plato propuesto por usuario'));
+
 console.log(`\n${'='.repeat(50)}`);
 console.log(`Pruebas superadas: ${pasadas}`);
 if (fallos.length) {

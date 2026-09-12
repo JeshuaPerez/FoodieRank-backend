@@ -44,7 +44,7 @@ const crearRutas = (db, client) => {
 
     const enTransaccion = crearTransaccion(client);
 
-    const healthService = new HealthService(db.databaseName);
+    const healthService = new HealthService(db);
     const ranking = new RankingService(resenaRepo, restauranteRepo);
     const authService = new AuthService(usuarioRepo);
     const categoriaService = new CategoriaService(categoriaRepo, restauranteRepo);

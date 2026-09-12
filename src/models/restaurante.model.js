@@ -33,4 +33,11 @@ const restaurantePublico = (restaurante) => restaurante && ({
     creadoEn: restaurante.creadoEn
 });
 
-export { nuevoRestaurante, restaurantePublico };
+// Un restaurante pendiente de aprobación solo lo ven el administrador y quien lo
+// propuso. Lo usan el detalle y todo lo que cuelga del restaurante.
+const esVisiblePara = (restaurante, usuario = null) =>
+    restaurante.aprobado
+    || usuario?.rol === 'admin'
+    || Boolean(usuario && restaurante.creadoPor?.equals(usuario._id));
+
+export { nuevoRestaurante, restaurantePublico, esVisiblePara };
