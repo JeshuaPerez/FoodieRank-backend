@@ -1,0 +1,377 @@
+# FoodieRank — Backend
+
+API RESTful para registrar, calificar y rankear restaurantes y platos. Los usuarios
+se registran, proponen restaurantes, publican reseñas con calificación de 1 a 5
+estrellas y reaccionan a las reseñas de otros; un administrador gestiona las
+categorías y aprueba lo que se publica. El ranking de cada restaurante se calcula
+combinando calificaciones, likes/dislikes y la fecha de cada reseña.
+
+Repositorio del frontend: _pendiente de enlazar_
+
+---
+
+## Tecnologías
+
+| Herramienta | Para qué |
+|---|---|
+| Node.js 24 + Express 5 | Servidor HTTP y enrutamiento |
+| MongoDB 7 (driver oficial) | Persistencia. Sin mongoose |
+| jsonwebtoken + passport-jwt | Autenticación por token |
+| bcrypt | Hash de contraseñas |
+| express-validator | Validación de entrada |
+| express-rate-limit | Límite de peticiones |
+| swagger-ui-express | Documentación interactiva |
+| semver | Versionado del API |
+| dotenv | Variables de entorno |
+| cors | Acceso desde el frontend |
+| mongodb-memory-server | Solo desarrollo: réplica en memoria para la prueba de humo |
+
+---
+
+## Instalación
+
+```bash
+git clone https://github.com/JeshuaPerez/FoodieRank-backend.git
+cd FoodieRank-backend
+npm install
+cp .env.example .env     # y completar los valores
+npm run seed             # crea el admin y datos de ejemplo
+npm run dev
+```
+
+El servidor queda en `http://localhost:3000/api` y la documentación en
+`http://localhost:3000/api/docs`.
+
+> **La base de datos tiene que ser un replica set.** Las transacciones de MongoDB
+> no funcionan contra un `mongod` suelto. El clúster M0 gratuito de Atlas ya es
+> replica set, así que sirve tal cual; un MongoDB local instalado por defecto, no.
+
+### Scripts
+
+| Comando | Qué hace |
+|---|---|
+| `npm run dev` | Servidor con recarga automática |
+| `npm start` | Servidor en modo normal |
+| `npm run seed` | Inserta administrador, categorías, restaurantes, platos y reseñas de ejemplo |
+| `npm run seed -- --reset` | Vacía las colecciones antes de sembrar |
+| `npm run smoke` | Prueba de humo: levanta un MongoDB en memoria y recorre toda la API |
+
+---
+
+## Variables de entorno
+
+| Variable | Descripción |
+|---|---|
+| `NODE_ENV` | `development` o `production` |
+| `PORT` | Puerto del servidor (por defecto 3000) |
+| `MONGODB_URI` | Cadena de conexión. **Obligatoria** |
+| `DB_NAME` | Nombre de la base de datos. **Obligatoria** |
+| `JWT_SECRET` | Secreto para firmar los tokens. **Obligatoria** |
+| `JWT_EXPIRES_IN` | Vigencia del token (`1d` por defecto) |
+| `BCRYPT_ROUNDS` | Rondas de hash (12 por defecto) |
+| `CORS_ORIGIN` | Orígenes permitidos, separados por coma |
+| `RATE_LIMIT_WINDOW_MS` | Ventana del límite de peticiones en milisegundos |
+| `RATE_LIMIT_MAX` | Peticiones permitidas por ventana en toda la API |
+| `AUTH_RATE_LIMIT_MAX` | Peticiones permitidas por ventana en `/auth` |
+| `ADMIN_NOMBRE`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Credenciales del administrador que crea el seed |
+
+El archivo `.env` no se sube al repositorio; `.env.example` sí, sin valores reales.
+
+---
+
+## Estructura del proyecto
+
+```
+src/
+├── config/          env, conexión, índices, passport y swagger
+├── models/          forma de cada documento, normalización y qué se expone
+├── repositories/    acceso a datos sobre el driver de MongoDB
+├── services/        reglas de negocio y transacciones
+├── controllers/     reciben req/res y delegan al servicio
+├── routes/          endpoints con sus validadores
+├── middlewares/     auth, errores, validación, rate limit y versión
+├── utils/           AppError, formato de respuesta, texto y transacciones
+├── app.js           monta Express y los middlewares
+└── server.js        conecta a Mongo, crea índices y abre el puerto
+scripts/
+├── seed.js          datos iniciales, incluido el administrador
+└── smoke.js         prueba de extremo a extremo
+```
+
+---
+
+## Principios aplicados
+
+**Separación por capas.** Cada petición recorre ruta → controlador → servicio →
+repositorio. El controlador no sabe de MongoDB y el repositorio no sabe de HTTP,
+así que una regla de negocio se cambia en un solo archivo.
+
+**Patrón Repository.** La carpeta `repositories/` aísla el driver de MongoDB del
+resto del código. `BaseRepository` concentra el CRUD genérico —`findAll`,
+`findById`, `findOne`, `create`, `update`, `delete`, `count`— y cada entidad
+hereda y añade solo sus consultas propias. Gracias a eso seis entidades no
+repiten el mismo CRUD, y todos los métodos aceptan una `session` opcional, que es
+lo que permite usarlos dentro de una transacción.
+
+**Inyección de dependencias.** La conexión se abre una sola vez en `server.js` y
+se pasa hacia abajo: `crearApp(db)` → `crearRutas(db)` → repositorios →
+servicios → controladores. Ningún módulo abre su propia conexión, y `app.js`
+puede montarse en pruebas sin levantar el puerto.
+
+**Modelo como contrato, no como ORM.** Sin mongoose, cada archivo de `models/`
+define la forma del documento, sus valores por defecto, la normalización previa
+al guardado y la función que decide qué campos salen hacia el cliente. La
+contraseña nunca está en esa lista.
+
+**Errores centralizados.** Los servicios lanzan `AppError(mensaje, codigo)` y un
+único middleware al final de la cadena lo traduce a respuesta HTTP. Express 5
+reenvía también los errores de los handlers `async`, así que no hace falta
+`try/catch` en cada ruta.
+
+**Validación en el borde.** `express-validator` corre en la definición de cada
+ruta, antes del controlador, y un middleware convierte sus errores en un 400 con
+la lista de campos que fallaron.
+
+---
+
+## Decisiones técnicas
+
+**Quién puede crear qué.** Cualquier usuario autenticado puede proponer
+restaurantes y platos, pero quedan con `aprobado: false` y no aparecen en los
+listados públicos hasta que un administrador los aprueba. Cuando el que crea es
+administrador, la entrada nace aprobada. Las categorías solo las gestiona un
+administrador.
+
+**El primer administrador nace en el seed.** El registro público fuerza el rol
+`usuario` y nunca acepta el campo `rol` del cliente, así que el administrador
+inicial lo crea `npm run seed` con las credenciales del `.env`.
+
+**Una sola forma de respuesta.** Todas las respuestas tienen la misma envoltura,
+en éxito y en error, para que el frontend lea siempre los mismos campos:
+
+```json
+{ "status": "ok", "mensaje": "Restaurantes obtenidos.", "datos": { } }
+```
+
+En los errores de validación, `datos` es la lista de campos que fallaron:
+
+```json
+{
+  "status": "fail",
+  "mensaje": "Datos inválidos.",
+  "datos": [{ "campo": "calificacion", "mensaje": "La calificación debe ser un entero entre 1 y 5." }]
+}
+```
+
+**Duplicados insensibles a mayúsculas y acentos.** Cada nombre se guarda también
+normalizado —minúsculas, sin acentos y sin espacios de más— y sobre ese campo hay
+un índice único. Así `"Café Central"` y `"cafe central"` son el mismo nombre, y
+el duplicado lo rechaza la base de datos, no una consulta previa.
+
+**Imágenes por URL.** El campo `imagen` es una cadena con la dirección de la
+imagen. No hay subida de archivos: el frontend envía una URL.
+
+**`miReaccion` con autenticación opcional.** El listado y el detalle de
+restaurantes son públicos, pero si la petición lleva token cada reseña incluye
+`miReaccion` (`like`, `dislike` o `null`) para que el frontend pinte el botón
+activo. Eso lo permite un middleware `optionalAuth` que, a diferencia de
+`requireAuth`, no responde 401 cuando no hay token.
+
+**Transacciones.** Publicar, editar o borrar una reseña y reaccionar a una reseña
+modifican varias colecciones a la vez, así que cada una corre dentro de
+`session.withTransaction()`: si el recálculo del ranking falla, la reseña no
+queda guardada. Borrar un restaurante arrastra en la misma transacción sus
+platos, sus reseñas y las reacciones de esas reseñas.
+
+**Moderación con registro.** Un administrador puede borrar la reseña de
+cualquiera. Cuando lo hace, queda constancia en la colección `moderaciones` con
+el autor original, el administrador responsable, el contenido y la fecha.
+
+**Versionado semver.** La versión vive en `package.json` y es la única fuente de
+verdad: se expone en `GET /api/health` y en Swagger. El cliente puede enviar la
+cabecera `x-version` con la versión para la que fue construido; si no es
+compatible con la del servidor, la respuesta es 409. `GET /api/health?v=1.0.0`
+informa la compatibilidad sin fallar.
+
+---
+
+## Ranking ponderado
+
+Combina los tres factores que pide el proyecto: calificación, utilidad
+(likes/dislikes) y fecha de la reseña.
+
+Por cada reseña *i*:
+
+```
+utilidad_i = máx(0.2,  1 + log10(1 + likes_i) − log10(1 + dislikes_i))
+frescura_i = e^(−días_desde(creadoEn_i) / 30)
+peso_i     = utilidad_i × (0.5 + 0.5 × frescura_i)
+```
+
+Del restaurante:
+
+```
+puntuación = Σ(calificación_i × peso_i) / Σ(peso_i)
+n          = número de reseñas
+C          = promedio de todas las calificaciones del sistema
+m          = 5
+
+rankingPonderado = (n × puntuación + m × C) / (n + m)
+```
+
+Por qué cada parte:
+
+- **El logaritmo en la utilidad** evita que 100 likes pesen cien veces más que
+  uno. Una reseña con muchos dislikes pesa menos, pero el piso de `0.2` impide
+  que el peso llegue a cero o se vuelva negativo, lo que rompería el promedio.
+- **La frescura** es un decaimiento exponencial: a los 30 días una reseña
+  conserva cerca del 37 % de su frescura. Nunca anula el peso, solo lo reduce a
+  la mitad en el límite.
+- **El promedio bayesiano** del último paso es el que evita la trampa de un solo
+  voto: un restaurante con una reseña de 5 estrellas no debe superar a otro con
+  cincuenta de 4.5. Con `m = 5`, un restaurante necesita unas cinco reseñas para
+  que su propia puntuación pese más que el promedio del sistema.
+
+El valor se recalcula dentro de la misma transacción que lo provoca —alta,
+edición o baja de reseña, y cada reacción— y se guarda en el restaurante junto a
+`totalResenas` y `promedioCalificacion`, para que el listado pueda ordenar sin
+recalcular nada.
+
+---
+
+## Endpoints
+
+Base: `/api`. Los marcados con 🔒 exigen token; con 👤, rol administrador.
+
+### Sistema
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/health` | Estado, versión y compatibilidad de versión del cliente |
+| GET | `/docs` | Documentación Swagger |
+
+### Autenticación
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/auth/registro` | Registro. Siempre crea rol `usuario` |
+| POST | `/auth/login` | Devuelve `{ token, usuario }` |
+| GET | `/auth/perfil` 🔒 | Datos del usuario del token |
+
+### Categorías
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/categorias` | Listado público |
+| GET | `/categorias/:id` | Detalle público |
+| POST | `/categorias` 👤 | Crear |
+| PUT | `/categorias/:id` 👤 | Actualizar |
+| DELETE | `/categorias/:id` 👤 | Eliminar. 409 si tiene restaurantes |
+
+### Restaurantes
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/restaurantes` | Listado público con `busqueda`, `categoria`, `orden`, `pagina`, `limite` |
+| GET | `/restaurantes/:id` | Detalle público con platos y reseñas |
+| POST | `/restaurantes` 🔒 | Proponer. El admin lo crea aprobado |
+| PUT | `/restaurantes/:id` 👤 | Actualizar |
+| PATCH | `/restaurantes/:id/aprobar` 👤 | Aprobar o retirar aprobación |
+| DELETE | `/restaurantes/:id` 👤 | Eliminar con sus platos y reseñas |
+
+### Platos
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/restaurantes/:id/platos` | Platos del restaurante |
+| POST | `/restaurantes/:id/platos` 🔒 | Registrar plato |
+| GET | `/platos/:id` | Detalle |
+| PUT | `/platos/:id` 👤 | Actualizar |
+| PATCH | `/platos/:id/aprobar` 👤 | Aprobar o retirar aprobación |
+| DELETE | `/platos/:id` 👤 | Eliminar |
+
+### Reseñas
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/restaurantes/:id/resenas` | Reseñas del restaurante |
+| POST | `/resenas` 🔒 | Publicar. Transaccional |
+| PUT | `/resenas/:id` 🔒 | Editar. Solo el autor |
+| DELETE | `/resenas/:id` 🔒 | Eliminar. Autor o administrador |
+| POST | `/resenas/:id/reaccion` 🔒 | Like o dislike. Transaccional |
+
+### Códigos de estado
+
+`200` ok · `201` creado · `204` eliminado sin cuerpo · `400` datos inválidos ·
+`401` sin token o token inválido · `403` sin permiso · `404` no existe ·
+`409` duplicado o conflicto · `429` demasiadas peticiones · `500` error interno.
+
+---
+
+## Cómo probar
+
+La forma más rápida es abrir `http://localhost:3000/api/docs` y usar el botón
+*Try it out*. Para Postman, la especificación se importa desde
+`http://localhost:3000/api/docs.json`.
+
+Con `curl`, después de correr `npm run seed`:
+
+```bash
+# 1. Entrar como administrador
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@foodierank.com","password":"Admin123*"}'
+```
+
+```bash
+# 2. Listar restaurantes ordenados por ranking
+curl "http://localhost:3000/api/restaurantes?orden=ranking&limite=5"
+```
+
+```bash
+# 3. Registrar un usuario nuevo
+curl -X POST http://localhost:3000/api/auth/registro \
+  -H "Content-Type: application/json" \
+  -d '{"nombre":"Nuevo Usuario","email":"nuevo@foodierank.com","password":"Secreta123"}'
+```
+
+```bash
+# 4. Publicar una reseña (reemplazar TOKEN e ID_RESTAURANTE)
+curl -X POST http://localhost:3000/api/resenas \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{"restauranteId":"ID_RESTAURANTE","comentario":"Muy buena atención y platos generosos.","calificacion":5}'
+```
+
+```bash
+# 5. Dar like a una reseña de otro usuario
+curl -X POST http://localhost:3000/api/resenas/ID_RESENA/reaccion \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{"tipo":"like"}'
+```
+
+El seed deja estas cuentas listas:
+
+| Cuenta | Rol |
+|---|---|
+| `admin@foodierank.com` / `Admin123*` | admin |
+| `juan@foodierank.com` / `Usuario123` | usuario |
+| `camila@foodierank.com` / `Usuario123` | usuario |
+| `andres@foodierank.com` / `Usuario123` | usuario |
+
+---
+
+## Notas para el consumo desde el frontend
+
+- El token va en `Authorization: Bearer <token>`. La cabecera ya está permitida
+  en la configuración de CORS.
+- Los orígenes permitidos se declaran en `CORS_ORIGIN`, separados por coma. Las
+  peticiones sin cabecera `Origin` (Postman, o un `index.html` abierto como
+  archivo con doble clic) se aceptan; si se sirve el frontend con Live Server,
+  hay que agregar `http://localhost:5500` y `http://127.0.0.1:5500`.
+- Los mensajes de error vienen siempre en `mensaje`, y en los de validación la
+  lista de campos viene en `datos`, lista para mostrarse junto a cada input.
+- `GET /restaurantes/:id` con token devuelve `miReaccion` en cada reseña; sin
+  token, `null`.
+
+---
+
+## Créditos
+
+Backend: **Jeshua Perez**.
+Proyecto académico — API de calificación y ranking de restaurantes.
