@@ -67,6 +67,8 @@ export default class ResenaService {
             if (datos.calificacion !== undefined) cambios.calificacion = Number(datos.calificacion);
 
             const actualizada = await this.#resenaRepo.update(id, cambios, { session });
+            if (!actualizada) throw new AppError('Reseña no encontrada.', 404);
+
             await this.#ranking.recalcular(resena.restauranteId, { session });
 
             return resenaPublica({ ...actualizada, autor: usuario.nombre });
@@ -86,8 +88,13 @@ export default class ResenaService {
         }
 
         await enTransaccion(async (session) => {
+            // El borrado manda: si dos peticiones llegan juntas (doble clic), solo
+            // la que realmente borra sigue adelante. La otra responde 404 y no
+            // duplica el registro de moderación.
+            const borrada = await this.#resenaRepo.delete(resena._id, { session });
+            if (!borrada) throw new AppError('Reseña no encontrada.', 404);
+
             await this.#reaccionRepo.deleteByResenas([resena._id], { session });
-            await this.#resenaRepo.delete(resena._id, { session });
 
             if (esAdmin && !esAutor) {
                 await this.#moderacionRepo.create({

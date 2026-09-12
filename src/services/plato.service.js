@@ -61,6 +61,7 @@ export default class PlatoService {
         if (datos.imagen !== undefined) cambios.imagen = datos.imagen?.trim() || null;
 
         const actualizado = await this.#platoRepo.update(id, cambios);
+        if (!actualizado) throw new AppError('Plato no encontrado.', 404);
         return platoPublico(actualizado);
     }
 
@@ -69,12 +70,15 @@ export default class PlatoService {
         if (!plato) throw new AppError('Plato no encontrado.', 404);
 
         const actualizado = await this.#platoRepo.update(id, { aprobado });
+        if (!actualizado) throw new AppError('Plato no encontrado.', 404);
         return platoPublico(actualizado);
     }
 
     async eliminar(id) {
         const plato = await this.#platoRepo.findById(id);
         if (!plato) throw new AppError('Plato no encontrado.', 404);
-        await this.#platoRepo.delete(id);
+
+        const borrado = await this.#platoRepo.delete(id);
+        if (!borrado) throw new AppError('Plato no encontrado.', 404);
     }
 }
