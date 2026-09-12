@@ -138,10 +138,4 @@ export default class RestauranteService {
             await this.#restauranteRepo.delete(restaurante._id, { session });
         });
     }
-
-    async verificarAprobado(restauranteId, { session } = {}) {
-        const restaurante = await this.#restauranteRepo.findById(restauranteId, { session });
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
-        return restaurante;
-    }
 }

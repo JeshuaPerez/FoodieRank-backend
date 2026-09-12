@@ -19,11 +19,6 @@ const pool = async () => {
     }
 };
 
-const getDb = () => {
-    if (!db) throw new Error('|--> La base de datos no está conectada. Ejecuta pool() primero.');
-    return db;
-};
-
 const getClient = () => client;
 
 const cerrarConexion = async () => {
@@ -32,4 +27,4 @@ const cerrarConexion = async () => {
     console.log('|--> Conexión con la base de datos cerrada.');
 };
 
-export { pool, getDb, getClient, cerrarConexion };
+export { pool, getClient, cerrarConexion };

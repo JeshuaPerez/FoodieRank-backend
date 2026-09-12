@@ -1,7 +1,6 @@
 import AppError from '../utils/app-error.js';
 import { normalizar } from '../utils/texto.js';
 import { nuevaCategoria, categoriaPublica } from '../models/categoria.model.js';
-import BaseRepository from '../repositories/base.repository.js';
 
 export default class CategoriaService {
     #categoriaRepo;
@@ -65,8 +64,7 @@ export default class CategoriaService {
 
     // Se usa al crear o editar restaurantes
     async verificarExiste(categoriaId) {
-        const _id = BaseRepository.aObjectId(categoriaId);
-        const categoria = _id && await this.#categoriaRepo.findById(_id);
+        const categoria = await this.#categoriaRepo.findById(categoriaId);
         if (!categoria) throw new AppError('La categoría indicada no existe.', 404);
         return categoria;
     }
