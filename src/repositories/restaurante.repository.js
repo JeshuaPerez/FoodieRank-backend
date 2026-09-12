@@ -45,7 +45,12 @@ export default class RestauranteRepository extends BaseRepository {
     async listar({ busqueda, categoriaId, orden = 'ranking', pagina = 1, limite = 10, aprobado } = {}) {
         const filtro = {};
         if (typeof aprobado === 'boolean') filtro.aprobado = aprobado;
-        if (categoriaId) filtro.categoriaId = categoriaId;
+
+        // Recibe el id tal como llega en la query; convertirlo es asunto de esta
+        // capa, no del servicio. Si no es válido, el filtro simplemente no se aplica.
+        const categoria = BaseRepository.aObjectId(categoriaId);
+        if (categoria) filtro.categoriaId = categoria;
+
         if (busqueda) filtro.nombreNormalizado = { $regex: escaparRegex(normalizar(busqueda)) };
 
         const paginacion = [{ $skip: (pagina - 1) * limite }];
