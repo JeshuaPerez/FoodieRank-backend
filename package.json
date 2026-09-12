@@ -18,7 +18,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js --quiet",
     "seed": "node scripts/seed.js",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "check:frontend": "node scripts/frontend.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

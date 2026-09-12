@@ -55,6 +55,7 @@ El servidor queda en `http://localhost:3000/api` y la documentación en
 | `npm run seed` | Inserta administrador, categorías, restaurantes, platos y reseñas de ejemplo |
 | `npm run seed -- --reset` | Vacía las colecciones antes de sembrar |
 | `npm run smoke` | Prueba de humo: levanta un MongoDB en memoria y recorre toda la API |
+| `npm run check:frontend` | Pruebas de consumo desde el navegador: CORS, preflight, formularios, tokens vencidos y doble clic |
 
 ---
 
@@ -368,6 +369,32 @@ El seed deja estas cuentas listas:
   lista de campos viene en `datos`, lista para mostrarse junto a cada input.
 - `GET /restaurantes/:id` con token devuelve `miReaccion` en cada reseña; sin
   token, `null`.
+- **El cuerpo va como JSON o como formulario urlencoded, no como `FormData`.** Un
+  `new FormData(formulario)` se envía como `multipart/form-data`, que la API no
+  procesa, y la respuesta sería un 400 de campos faltantes. Las dos formas que
+  sí funcionan:
+
+```js
+// JSON
+fetch(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password })
+});
+
+// Formulario
+fetch(url, { method: 'POST', body: new URLSearchParams(new FormData(formulario)) });
+```
+
+- El `Content-Type: application/json` no es opcional: sin él el cuerpo no se
+  parsea y la validación responde 400.
+- Un token vencido en `localStorage` no rompe las pantallas públicas: el listado
+  y el detalle siguen respondiendo 200, solo llega `miReaccion: null`. En las
+  rutas con sesión la respuesta es 401 y conviene limpiar el token y redirigir
+  al login.
+- Los campos numéricos pueden ir como texto (`"5"`, `"38000"`), que es lo que
+  entrega un `input`. Un campo `imagen` vacío también se acepta y se guarda como
+  `null`.
 
 ---
 
