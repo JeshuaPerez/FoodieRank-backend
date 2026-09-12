@@ -9,6 +9,7 @@ import ResenaRepository from '../repositories/resena.repository.js';
 import ReaccionRepository from '../repositories/reaccion.repository.js';
 import ModeracionRepository from '../repositories/moderacion.repository.js';
 
+import HealthService from '../services/health.service.js';
 import AuthService from '../services/auth.service.js';
 import CategoriaService from '../services/categoria.service.js';
 import RestauranteService from '../services/restaurante.service.js';
@@ -16,6 +17,7 @@ import PlatoService from '../services/plato.service.js';
 import ResenaService from '../services/resena.service.js';
 import RankingService from '../services/ranking.service.js';
 
+import HealthController from '../controllers/health.controller.js';
 import AuthController from '../controllers/auth.controller.js';
 import CategoriaController from '../controllers/categoria.controller.js';
 import RestauranteController from '../controllers/restaurante.controller.js';
@@ -42,6 +44,7 @@ const crearRutas = (db, client) => {
 
     const enTransaccion = crearTransaccion(client);
 
+    const healthService = new HealthService(db.databaseName);
     const ranking = new RankingService(resenaRepo, restauranteRepo);
     const authService = new AuthService(usuarioRepo);
     const categoriaService = new CategoriaService(categoriaRepo, restauranteRepo);
@@ -55,7 +58,7 @@ const crearRutas = (db, client) => {
 
     const router = Router();
 
-    router.use('/health', crearHealthRouter(db.databaseName));
+    router.use('/health', crearHealthRouter(new HealthController(healthService)));
     router.use('/auth', crearAuthRouter(new AuthController(authService)));
     router.use('/categorias', crearCategoriaRouter(new CategoriaController(categoriaService)));
     router.use('/restaurantes', crearRestauranteRouter(restauranteController, platoController, resenaController));
