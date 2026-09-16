@@ -6,7 +6,13 @@ estrellas y reaccionan a las reseñas de otros; un administrador gestiona las
 categorías y aprueba lo que se publica. El ranking de cada restaurante se calcula
 combinando calificaciones, likes/dislikes y la fecha de cada reseña.
 
-Repositorio del frontend: https://github.com/JeshuaPerez/FoodieRank-frontend
+## Enlaces del proyecto
+
+| Recurso | Enlace |
+|---|---|
+| Repositorio del frontend | https://github.com/JeshuaPerez/FoodieRank-frontend |
+| Tablero Scrum (Notion) | https://app.notion.com/p/FoodieRank-Proyectos-y-tareas-94286faa23a082d5b5ed01729a74d2e4 |
+| Documento PDF y video de la entrega (Drive) | https://drive.google.com/drive/folders/1kp9_M4b4lfy_-uac5aSIvqZ90IFGVwhp |
 
 ---
 
@@ -445,5 +451,5 @@ fetch(url, { method: 'POST', body: new URLSearchParams(new FormData(formulario))
 
 ## Créditos
 
-Backend: **Jeshua Perez**.
+Backend: **Jeshua Perez**, **Juan Lema**.
 Proyecto académico — API de calificación y ranking de restaurantes.
