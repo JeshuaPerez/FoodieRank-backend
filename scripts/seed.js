@@ -5,7 +5,7 @@
 //      npm run seed -- --reset  -> borra las colecciones y las vuelve a crear
 import { hashSync } from 'bcrypt';
 import env from '../src/config/env.js';
-import { pool, cerrarConexion } from '../src/config/db.js';
+import Database from '../src/config/db.js';
 import crearIndices from '../src/config/indexes.js';
 import { nuevoUsuario } from '../src/models/usuario.model.js';
 import { nuevaCategoria } from '../src/models/categoria.model.js';
@@ -122,7 +122,8 @@ const hace = (dias) => new Date(Date.now() - dias * 86400000);
 
 const sembrar = async () => {
     const reset = process.argv.includes('--reset');
-    const db = await pool();
+    const baseDeDatos = Database.obtenerInstancia();
+    const db = await baseDeDatos.conectar();
 
     if (reset) {
         for (const nombre of COLECCIONES) {
@@ -243,11 +244,11 @@ const sembrar = async () => {
     console.log(`|--> Admin: ${env.admin.email} / ${env.admin.password}`);
     console.log('|--> Usuarios de prueba: juan@foodierank.com, camila@foodierank.com, andres@foodierank.com (contraseña Usuario123)');
 
-    await cerrarConexion();
+    await baseDeDatos.cerrar();
 };
 
 sembrar().catch(async (error) => {
     console.error(`|--> Error en el seed: ${error.message}`);
-    await cerrarConexion().catch(() => {});
+    await Database.obtenerInstancia().cerrar().catch(() => {});
     process.exit(1);
 });
