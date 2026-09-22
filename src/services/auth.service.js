@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import env from '../config/env.js';
 import { ConflictoError, NoAutenticadoError, NoEncontradoError } from '../utils/errores.js';
 import { normalizar } from '../utils/texto.js';
-import { nuevoUsuario, usuarioPublico } from '../models/usuario.model.js';
+import Usuario from '../models/usuario.model.js';
 
 export default class AuthService {
     #usuarioRepo;
@@ -17,13 +17,13 @@ export default class AuthService {
             throw new ConflictoError('El email ya está registrado.');
         }
 
-        const usuario = nuevoUsuario({
+        const usuario = Usuario.nuevo({
             ...datos,
             password: hashSync(datos.password, env.bcryptRondas)
         });
 
-        const creado = await this.#usuarioRepo.create(usuario);
-        return { token: this.#firmarToken(creado), usuario: usuarioPublico(creado) };
+        const creado = await this.#usuarioRepo.create(usuario.aDocumento());
+        return { token: this.#firmarToken(creado), usuario: Usuario.desde(creado).aPublico() };
     }
 
     async login({ email, password }) {
@@ -34,13 +34,13 @@ export default class AuthService {
             throw new NoAutenticadoError('Credenciales inválidas.');
         }
 
-        return { token: this.#firmarToken(usuario), usuario: usuarioPublico(usuario) };
+        return { token: this.#firmarToken(usuario), usuario: Usuario.desde(usuario).aPublico() };
     }
 
     async perfil(usuarioId) {
         const usuario = await this.#usuarioRepo.findById(usuarioId);
         if (!usuario) throw new NoEncontradoError('Usuario no encontrado.');
-        return usuarioPublico(usuario);
+        return Usuario.desde(usuario).aPublico();
     }
 
     // En el payload solo va el id y el rol, nada sensible

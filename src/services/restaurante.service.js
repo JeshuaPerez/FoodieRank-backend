@@ -1,8 +1,8 @@
 import { ConflictoError, NoEncontradoError } from '../utils/errores.js';
 import { normalizar } from '../utils/texto.js';
-import { nuevoRestaurante, restaurantePublico, esVisiblePara } from '../models/restaurante.model.js';
-import { platoPublico } from '../models/plato.model.js';
-import { resenaPublica } from '../models/resena.model.js';
+import Restaurante from '../models/restaurante.model.js';
+import Plato from '../models/plato.model.js';
+import Resena from '../models/resena.model.js';
 
 const LIMITE_MAXIMO = 50;
 
@@ -42,7 +42,7 @@ export default class RestauranteService {
             aprobado
         });
 
-        return { documentos: documentos.map(restaurantePublico), total, pagina, limite };
+        return { documentos: documentos.map((d) => Restaurante.desde(d).aPublico()), total, pagina, limite };
     }
 
     // Detalle con platos y reseñas: es la vista de detalle del frontend
@@ -50,7 +50,7 @@ export default class RestauranteService {
         const restaurante = await this.#restauranteRepo.findDetalle(id);
         if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
 
-        if (!esVisiblePara(restaurante, usuario)) {
+        if (!Restaurante.desde(restaurante).esVisiblePara(usuario)) {
             throw new NoEncontradoError('Restaurante no encontrado.');
         }
 
@@ -62,9 +62,9 @@ export default class RestauranteService {
         ]);
 
         return {
-            ...restaurantePublico(restaurante),
-            platos: platos.map(platoPublico),
-            resenas: resenas.map(resenaPublica)
+            ...Restaurante.desde(restaurante).aPublico(),
+            platos: platos.map((d) => Plato.desde(d).aPublico()),
+            resenas: resenas.map((d) => Resena.desde(d).aPublico())
         };
     }
 
@@ -78,14 +78,14 @@ export default class RestauranteService {
             throw new ConflictoError('Ya existe un restaurante con ese nombre.');
         }
 
-        const documento = nuevoRestaurante(
+        const documento = Restaurante.nuevo(
             { ...datos, categoriaId: categoria._id },
             usuario._id,
             usuario.rol === 'admin'
         );
 
-        const creado = await this.#restauranteRepo.create(documento);
-        return restaurantePublico(creado);
+        const creado = await this.#restauranteRepo.create(documento.aDocumento());
+        return Restaurante.desde(creado).aPublico();
     }
 
     async actualizar(id, datos) {
@@ -114,7 +114,7 @@ export default class RestauranteService {
 
         const actualizado = await this.#restauranteRepo.update(id, cambios);
         if (!actualizado) throw new NoEncontradoError('Restaurante no encontrado.');
-        return restaurantePublico(actualizado);
+        return Restaurante.desde(actualizado).aPublico();
     }
 
     async aprobar(id, aprobado = true) {
@@ -123,7 +123,7 @@ export default class RestauranteService {
 
         const actualizado = await this.#restauranteRepo.update(id, { aprobado });
         if (!actualizado) throw new NoEncontradoError('Restaurante no encontrado.');
-        return restaurantePublico(actualizado);
+        return Restaurante.desde(actualizado).aPublico();
     }
 
     // Borrar el restaurante arrastra platos, reseñas y reacciones: si falla

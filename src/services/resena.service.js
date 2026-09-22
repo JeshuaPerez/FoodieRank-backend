@@ -1,7 +1,7 @@
 import { ConflictoError, NoEncontradoError, SinPermisoError } from '../utils/errores.js';
-import { nuevaResena, resenaPublica } from '../models/resena.model.js';
-import { nuevaReaccion } from '../models/reaccion.model.js';
-import { esVisiblePara } from '../models/restaurante.model.js';
+import Resena from '../models/resena.model.js';
+import Reaccion from '../models/reaccion.model.js';
+import Restaurante from '../models/restaurante.model.js';
 
 // like suma en likes, dislike en dislikes
 const campoContador = (tipo) => (tipo === 'like' ? 'likes' : 'dislikes');
@@ -29,14 +29,14 @@ export default class ResenaService {
 
         // Mismo criterio que el detalle: si el restaurante está pendiente, sus
         // reseñas tampoco se listan
-        if (!esVisiblePara(restaurante, usuario)) {
+        if (!Restaurante.desde(restaurante).esVisiblePara(usuario)) {
             throw new NoEncontradoError('Restaurante no encontrado.');
         }
 
         const resenas = await this.#resenaRepo.findByRestaurante(restaurante._id, {
             usuarioId: usuario?._id ?? null
         });
-        return resenas.map(resenaPublica);
+        return resenas.map((d) => Resena.desde(d).aPublico());
     }
 
     // Insertar la reseña y recalcular el ranking son una sola operación: si el
@@ -53,12 +53,12 @@ export default class ResenaService {
             if (existente) throw new ConflictoError('Ya has reseñado este restaurante.');
 
             const creada = await this.#resenaRepo.create(
-                nuevaResena(datos, usuario._id, restaurante._id),
+                Resena.nueva(datos, usuario._id, restaurante._id).aDocumento(),
                 { session }
             );
             await this.#ranking.recalcular(restaurante._id, { session });
 
-            return resenaPublica({ ...creada, autor: usuario.nombre });
+            return Resena.desde({ ...creada, autor: usuario.nombre }).aPublico();
         });
     }
 
@@ -79,7 +79,7 @@ export default class ResenaService {
 
             await this.#ranking.recalcular(resena.restauranteId, { session });
 
-            return resenaPublica({ ...actualizada, autor: usuario.nombre });
+            return Resena.desde({ ...actualizada, autor: usuario.nombre }).aPublico();
         });
     }
 
@@ -136,7 +136,7 @@ export default class ResenaService {
             let miReaccion = tipo;
 
             if (!existente) {
-                await this.#reaccionRepo.create(nuevaReaccion({ tipo }, usuario._id, resena._id), { session });
+                await this.#reaccionRepo.create(Reaccion.nueva({ tipo }, usuario._id, resena._id).aDocumento(), { session });
                 contadores[campoContador(tipo)] += 1;
             }
             else if (existente.tipo === tipo) {
@@ -153,7 +153,7 @@ export default class ResenaService {
             const actualizada = await this.#resenaRepo.incrementarContadores(resena._id, contadores, { session });
             await this.#ranking.recalcular(resena.restauranteId, { session });
 
-            return resenaPublica({ ...actualizada, miReaccion });
+            return Resena.desde({ ...actualizada, miReaccion }).aPublico();
         });
     }
 }

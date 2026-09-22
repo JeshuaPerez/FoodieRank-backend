@@ -1,6 +1,6 @@
 import { ConflictoError, NoEncontradoError } from '../utils/errores.js';
 import { normalizar } from '../utils/texto.js';
-import { nuevaCategoria, categoriaPublica } from '../models/categoria.model.js';
+import Categoria from '../models/categoria.model.js';
 
 export default class CategoriaService {
     #categoriaRepo;
@@ -13,21 +13,21 @@ export default class CategoriaService {
 
     async listar() {
         const categorias = await this.#categoriaRepo.findAll({}, { orden: { nombre: 1 } });
-        return categorias.map(categoriaPublica);
+        return categorias.map((d) => Categoria.desde(d).aPublico());
     }
 
     async obtener(id) {
         const categoria = await this.#categoriaRepo.findById(id);
         if (!categoria) throw new NoEncontradoError('Categoría no encontrada.');
-        return categoriaPublica(categoria);
+        return Categoria.desde(categoria).aPublico();
     }
 
     async crear(datos) {
         if (await this.#categoriaRepo.findByNombre(normalizar(datos.nombre))) {
             throw new ConflictoError('Ya existe una categoría con ese nombre.');
         }
-        const creada = await this.#categoriaRepo.create(nuevaCategoria(datos));
-        return categoriaPublica(creada);
+        const creada = await this.#categoriaRepo.create(Categoria.nueva(datos).aDocumento());
+        return Categoria.desde(creada).aPublico();
     }
 
     async actualizar(id, datos) {
@@ -47,7 +47,7 @@ export default class CategoriaService {
 
         const actualizada = await this.#categoriaRepo.update(id, cambios);
         if (!actualizada) throw new NoEncontradoError('Categoría no encontrada.');
-        return categoriaPublica(actualizada);
+        return Categoria.desde(actualizada).aPublico();
     }
 
     async eliminar(id) {
