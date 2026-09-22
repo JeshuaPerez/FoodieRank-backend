@@ -1,5 +1,5 @@
 import { enviar } from '../utils/respuesta.js';
-import { usuarioPublico } from '../models/usuario.model.js';
+import Usuario from '../models/usuario.model.js';
 
 export default class AuthController {
     #authService;
@@ -22,6 +22,6 @@ export default class AuthController {
     }
 
     async perfil(req, res) {
-        enviar(res, 200, 'Perfil del usuario autenticado.', usuarioPublico(req.usuario));
+        enviar(res, 200, 'Perfil del usuario autenticado.', Usuario.desde(req.usuario).aPublico());
     }
 }

@@ -1,5 +1,5 @@
 import env from './config/env.js';
-import { pool, getClient, cerrarConexion } from './config/db.js';
+import Database from './config/db.js';
 import crearIndices from './config/indexes.js';
 import crearApp from './app.js';
 
@@ -7,10 +7,11 @@ import crearApp from './app.js';
 const ESPERA_MAXIMA_DE_CIERRE_MS = 10000;
 
 const iniciar = async () => {
-    const db = await pool();
+    const baseDeDatos = Database.obtenerInstancia();
+    const db = await baseDeDatos.conectar();
     await crearIndices(db);
 
-    const app = crearApp(db, getClient());
+    const app = crearApp(db, baseDeDatos.obtenerCliente());
     const servidor = app.listen(env.puerto, () => {
         console.log(`|--> FoodieRank API v${env.version} corriendo en http://localhost:${env.puerto}/api`);
         console.log(`|--> Documentación disponible en http://localhost:${env.puerto}/api/docs`);
@@ -31,7 +32,7 @@ const iniciar = async () => {
 
         servidor.close(async () => {
             clearTimeout(forzarSalida);
-            await cerrarConexion().catch(() => {});
+            await baseDeDatos.cerrar().catch(() => {});
             process.exit(codigo);
         });
     };

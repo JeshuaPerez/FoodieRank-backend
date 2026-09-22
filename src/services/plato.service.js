@@ -1,7 +1,7 @@
-import AppError from '../utils/app-error.js';
+import { ConflictoError, NoEncontradoError } from '../utils/errores.js';
 import { normalizar } from '../utils/texto.js';
-import { nuevoPlato, platoPublico, platoVisiblePara } from '../models/plato.model.js';
-import { esVisiblePara } from '../models/restaurante.model.js';
+import Plato from '../models/plato.model.js';
+import Restaurante from '../models/restaurante.model.js';
 
 export default class PlatoService {
     #platoRepo;
@@ -14,57 +14,57 @@ export default class PlatoService {
 
     async listarPorRestaurante(restauranteId, usuario = null) {
         const restaurante = await this.#restauranteRepo.findById(restauranteId);
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+        if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
 
         // Si el restaurante está pendiente, sus platos tampoco son públicos
-        if (!esVisiblePara(restaurante, usuario)) {
-            throw new AppError('Restaurante no encontrado.', 404);
+        if (!Restaurante.desde(restaurante).esVisiblePara(usuario)) {
+            throw new NoEncontradoError('Restaurante no encontrado.');
         }
 
         const esAdmin = usuario?.rol === 'admin';
         const platos = await this.#platoRepo.findByRestaurante(restaurante._id, {
             aprobado: esAdmin ? undefined : true
         });
-        return platos.map(platoPublico);
+        return platos.map((d) => Plato.desde(d).aPublico());
     }
 
     async obtener(id, usuario = null) {
         const plato = await this.#platoRepo.findById(id);
-        if (!plato) throw new AppError('Plato no encontrado.', 404);
-        if (!platoVisiblePara(plato, usuario)) throw new AppError('Plato no encontrado.', 404);
+        if (!plato) throw new NoEncontradoError('Plato no encontrado.');
+        if (!Plato.desde(plato).esVisiblePara(usuario)) throw new NoEncontradoError('Plato no encontrado.');
 
         // Un plato aprobado de un restaurante pendiente sigue sin ser público
         const restaurante = await this.#restauranteRepo.findById(plato.restauranteId);
-        if (!restaurante || !esVisiblePara(restaurante, usuario)) {
-            throw new AppError('Plato no encontrado.', 404);
+        if (!restaurante || !Restaurante.desde(restaurante).esVisiblePara(usuario)) {
+            throw new NoEncontradoError('Plato no encontrado.');
         }
 
-        return platoPublico(plato);
+        return Plato.desde(plato).aPublico();
     }
 
     async crear(restauranteId, datos, usuario) {
         // Un plato no puede existir sin su restaurante
         const restaurante = await this.#restauranteRepo.findById(restauranteId);
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+        if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
 
         const duplicado = await this.#platoRepo.findByNombreEnRestaurante(restaurante._id, normalizar(datos.nombre));
-        if (duplicado) throw new AppError('Ya existe un plato con ese nombre en este restaurante.', 409);
+        if (duplicado) throw new ConflictoError('Ya existe un plato con ese nombre en este restaurante.');
 
-        const documento = nuevoPlato(datos, restaurante._id, usuario._id, usuario.rol === 'admin');
-        const creado = await this.#platoRepo.create(documento);
-        return platoPublico(creado);
+        const documento = Plato.nuevo(datos, restaurante._id, usuario._id, usuario.rol === 'admin');
+        const creado = await this.#platoRepo.create(documento.aDocumento());
+        return Plato.desde(creado).aPublico();
     }
 
     async actualizar(id, datos) {
         const plato = await this.#platoRepo.findById(id);
-        if (!plato) throw new AppError('Plato no encontrado.', 404);
+        if (!plato) throw new NoEncontradoError('Plato no encontrado.');
 
         const cambios = {};
 
         if (datos.nombre !== undefined) {
             const duplicado = await this.#platoRepo.findByNombreEnRestaurante(plato.restauranteId, normalizar(datos.nombre));
             if (duplicado && !duplicado._id.equals(plato._id)) {
-                throw new AppError('Ya existe un plato con ese nombre en este restaurante.', 409);
+                throw new ConflictoError('Ya existe un plato con ese nombre en este restaurante.');
             }
             cambios.nombre = datos.nombre.trim();
             cambios.nombreNormalizado = normalizar(datos.nombre);
@@ -75,24 +75,24 @@ export default class PlatoService {
         if (datos.imagen !== undefined) cambios.imagen = datos.imagen?.trim() || null;
 
         const actualizado = await this.#platoRepo.update(id, cambios);
-        if (!actualizado) throw new AppError('Plato no encontrado.', 404);
-        return platoPublico(actualizado);
+        if (!actualizado) throw new NoEncontradoError('Plato no encontrado.');
+        return Plato.desde(actualizado).aPublico();
     }
 
     async aprobar(id, aprobado = true) {
         const plato = await this.#platoRepo.findById(id);
-        if (!plato) throw new AppError('Plato no encontrado.', 404);
+        if (!plato) throw new NoEncontradoError('Plato no encontrado.');
 
         const actualizado = await this.#platoRepo.update(id, { aprobado });
-        if (!actualizado) throw new AppError('Plato no encontrado.', 404);
-        return platoPublico(actualizado);
+        if (!actualizado) throw new NoEncontradoError('Plato no encontrado.');
+        return Plato.desde(actualizado).aPublico();
     }
 
     async eliminar(id) {
         const plato = await this.#platoRepo.findById(id);
-        if (!plato) throw new AppError('Plato no encontrado.', 404);
+        if (!plato) throw new NoEncontradoError('Plato no encontrado.');
 
         const borrado = await this.#platoRepo.delete(id);
-        if (!borrado) throw new AppError('Plato no encontrado.', 404);
+        if (!borrado) throw new NoEncontradoError('Plato no encontrado.');
     }
 }
