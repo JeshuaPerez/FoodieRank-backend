@@ -1,8 +1,8 @@
-import AppError from '../utils/app-error.js';
+import { ConflictoError, NoEncontradoError } from '../utils/errores.js';
 import { normalizar } from '../utils/texto.js';
-import { nuevoRestaurante, restaurantePublico, esVisiblePara } from '../models/restaurante.model.js';
-import { platoPublico } from '../models/plato.model.js';
-import { resenaPublica } from '../models/resena.model.js';
+import Restaurante from '../models/restaurante.model.js';
+import Plato from '../models/plato.model.js';
+import Resena from '../models/resena.model.js';
 
 const LIMITE_MAXIMO = 50;
 
@@ -42,16 +42,16 @@ export default class RestauranteService {
             aprobado
         });
 
-        return { documentos: documentos.map(restaurantePublico), total, pagina, limite };
+        return { documentos: documentos.map((d) => Restaurante.desde(d).aPublico()), total, pagina, limite };
     }
 
     // Detalle con platos y reseñas: es la vista de detalle del frontend
     async obtenerDetalle(id, usuario = null) {
         const restaurante = await this.#restauranteRepo.findDetalle(id);
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+        if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
 
-        if (!esVisiblePara(restaurante, usuario)) {
-            throw new AppError('Restaurante no encontrado.', 404);
+        if (!Restaurante.desde(restaurante).esVisiblePara(usuario)) {
+            throw new NoEncontradoError('Restaurante no encontrado.');
         }
 
         const esAdmin = usuario?.rol === 'admin';
@@ -62,9 +62,9 @@ export default class RestauranteService {
         ]);
 
         return {
-            ...restaurantePublico(restaurante),
-            platos: platos.map(platoPublico),
-            resenas: resenas.map(resenaPublica)
+            ...Restaurante.desde(restaurante).aPublico(),
+            platos: platos.map((d) => Plato.desde(d).aPublico()),
+            resenas: resenas.map((d) => Resena.desde(d).aPublico())
         };
     }
 
@@ -75,29 +75,29 @@ export default class RestauranteService {
         const categoria = await this.#categoriaService.verificarExiste(datos.categoriaId);
 
         if (await this.#restauranteRepo.findByNombre(normalizar(datos.nombre))) {
-            throw new AppError('Ya existe un restaurante con ese nombre.', 409);
+            throw new ConflictoError('Ya existe un restaurante con ese nombre.');
         }
 
-        const documento = nuevoRestaurante(
+        const documento = Restaurante.nuevo(
             { ...datos, categoriaId: categoria._id },
             usuario._id,
             usuario.rol === 'admin'
         );
 
-        const creado = await this.#restauranteRepo.create(documento);
-        return restaurantePublico(creado);
+        const creado = await this.#restauranteRepo.create(documento.aDocumento());
+        return Restaurante.desde(creado).aPublico();
     }
 
     async actualizar(id, datos) {
         const restaurante = await this.#restauranteRepo.findById(id);
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+        if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
 
         const cambios = {};
 
         if (datos.nombre !== undefined) {
             const duplicado = await this.#restauranteRepo.findByNombre(normalizar(datos.nombre));
             if (duplicado && !duplicado._id.equals(restaurante._id)) {
-                throw new AppError('Ya existe un restaurante con ese nombre.', 409);
+                throw new ConflictoError('Ya existe un restaurante con ese nombre.');
             }
             cambios.nombre = datos.nombre.trim();
             cambios.nombreNormalizado = normalizar(datos.nombre);
@@ -113,30 +113,30 @@ export default class RestauranteService {
         if (datos.imagen !== undefined) cambios.imagen = datos.imagen?.trim() || null;
 
         const actualizado = await this.#restauranteRepo.update(id, cambios);
-        if (!actualizado) throw new AppError('Restaurante no encontrado.', 404);
-        return restaurantePublico(actualizado);
+        if (!actualizado) throw new NoEncontradoError('Restaurante no encontrado.');
+        return Restaurante.desde(actualizado).aPublico();
     }
 
     async aprobar(id, aprobado = true) {
         const restaurante = await this.#restauranteRepo.findById(id);
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+        if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
 
         const actualizado = await this.#restauranteRepo.update(id, { aprobado });
-        if (!actualizado) throw new AppError('Restaurante no encontrado.', 404);
-        return restaurantePublico(actualizado);
+        if (!actualizado) throw new NoEncontradoError('Restaurante no encontrado.');
+        return Restaurante.desde(actualizado).aPublico();
     }
 
     // Borrar el restaurante arrastra platos, reseñas y reacciones: si falla
     // alguna parte no puede quedar nada huérfano, por eso va en transacción
     async eliminar(id) {
         const restaurante = await this.#restauranteRepo.findById(id);
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+        if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
 
         await this.#enTransaccion(async (session) => {
             // Igual que en las reseñas: si el borrado no afectó nada, otra
             // petición llegó primero y esta no debe responder como exitosa.
             const borrado = await this.#restauranteRepo.delete(restaurante._id, { session });
-            if (!borrado) throw new AppError('Restaurante no encontrado.', 404);
+            if (!borrado) throw new NoEncontradoError('Restaurante no encontrado.');
 
             const resenas = await this.#resenaRepo.findAll({ restauranteId: restaurante._id }, { session });
             await this.#reaccionRepo.deleteByResenas(resenas.map((resena) => resena._id), { session });

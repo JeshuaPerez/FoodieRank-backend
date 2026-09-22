@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { body, param } from 'express-validator';
 import validar from '../middlewares/validacion.middleware.js';
 import { requireAuth } from '../middlewares/auth.middleware.js';
-import { TIPOS } from '../models/reaccion.model.js';
+import Reaccion from '../models/reaccion.model.js';
 
 const validarId = [param('id').isMongoId().withMessage('El id no es válido.')];
 
@@ -22,7 +22,7 @@ const validarEdicion = [
 
 const validarReaccion = [
     ...validarId,
-    body('tipo').notEmpty().withMessage('El tipo es requerido.').isIn(TIPOS).withMessage('El tipo debe ser like o dislike.')
+    body('tipo').notEmpty().withMessage('El tipo es requerido.').isIn(Reaccion.TIPOS).withMessage('El tipo debe ser like o dislike.')
 ];
 
 const crearResenaRouter = (controller) => {

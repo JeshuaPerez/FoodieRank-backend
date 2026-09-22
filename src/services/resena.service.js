@@ -1,7 +1,7 @@
-import AppError from '../utils/app-error.js';
-import { nuevaResena, resenaPublica } from '../models/resena.model.js';
-import { nuevaReaccion } from '../models/reaccion.model.js';
-import { esVisiblePara } from '../models/restaurante.model.js';
+import { ConflictoError, NoEncontradoError, SinPermisoError } from '../utils/errores.js';
+import Resena from '../models/resena.model.js';
+import Reaccion from '../models/reaccion.model.js';
+import Restaurante from '../models/restaurante.model.js';
 
 // like suma en likes, dislike en dislikes
 const campoContador = (tipo) => (tipo === 'like' ? 'likes' : 'dislikes');
@@ -25,48 +25,48 @@ export default class ResenaService {
 
     async listarPorRestaurante(restauranteId, usuario = null) {
         const restaurante = await this.#restauranteRepo.findById(restauranteId);
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+        if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
 
         // Mismo criterio que el detalle: si el restaurante está pendiente, sus
         // reseñas tampoco se listan
-        if (!esVisiblePara(restaurante, usuario)) {
-            throw new AppError('Restaurante no encontrado.', 404);
+        if (!Restaurante.desde(restaurante).esVisiblePara(usuario)) {
+            throw new NoEncontradoError('Restaurante no encontrado.');
         }
 
         const resenas = await this.#resenaRepo.findByRestaurante(restaurante._id, {
             usuarioId: usuario?._id ?? null
         });
-        return resenas.map(resenaPublica);
+        return resenas.map((d) => Resena.desde(d).aPublico());
     }
 
     // Insertar la reseña y recalcular el ranking son una sola operación: si el
     // recálculo falla, la reseña no puede quedar guardada.
     async crear(datos, usuario) {
         const restaurante = await this.#restauranteRepo.findById(datos.restauranteId);
-        if (!restaurante) throw new AppError('Restaurante no encontrado.', 404);
+        if (!restaurante) throw new NoEncontradoError('Restaurante no encontrado.');
         if (!restaurante.aprobado) {
-            throw new AppError('El restaurante está pendiente de aprobación y no admite reseñas.', 409);
+            throw new ConflictoError('El restaurante está pendiente de aprobación y no admite reseñas.');
         }
 
         return await this.#enTransaccion(async (session) => {
             const existente = await this.#resenaRepo.findByUsuarioYRestaurante(usuario._id, restaurante._id, { session });
-            if (existente) throw new AppError('Ya has reseñado este restaurante.', 409);
+            if (existente) throw new ConflictoError('Ya has reseñado este restaurante.');
 
             const creada = await this.#resenaRepo.create(
-                nuevaResena(datos, usuario._id, restaurante._id),
+                Resena.nueva(datos, usuario._id, restaurante._id).aDocumento(),
                 { session }
             );
             await this.#ranking.recalcular(restaurante._id, { session });
 
-            return resenaPublica({ ...creada, autor: usuario.nombre });
+            return Resena.desde({ ...creada, autor: usuario.nombre }).aPublico();
         });
     }
 
     async actualizar(id, datos, usuario) {
         const resena = await this.#resenaRepo.findById(id);
-        if (!resena) throw new AppError('Reseña no encontrada.', 404);
+        if (!resena) throw new NoEncontradoError('Reseña no encontrada.');
         if (!resena.usuarioId.equals(usuario._id)) {
-            throw new AppError('Solo el autor puede editar su reseña.', 403);
+            throw new SinPermisoError('Solo el autor puede editar su reseña.');
         }
 
         return await this.#enTransaccion(async (session) => {
@@ -75,11 +75,11 @@ export default class ResenaService {
             if (datos.calificacion !== undefined) cambios.calificacion = Number(datos.calificacion);
 
             const actualizada = await this.#resenaRepo.update(id, cambios, { session });
-            if (!actualizada) throw new AppError('Reseña no encontrada.', 404);
+            if (!actualizada) throw new NoEncontradoError('Reseña no encontrada.');
 
             await this.#ranking.recalcular(resena.restauranteId, { session });
 
-            return resenaPublica({ ...actualizada, autor: usuario.nombre });
+            return Resena.desde({ ...actualizada, autor: usuario.nombre }).aPublico();
         });
     }
 
@@ -87,12 +87,12 @@ export default class ResenaService {
     // ajena queda constancia en la bitácora de moderación.
     async eliminar(id, usuario) {
         const resena = await this.#resenaRepo.findById(id);
-        if (!resena) throw new AppError('Reseña no encontrada.', 404);
+        if (!resena) throw new NoEncontradoError('Reseña no encontrada.');
 
         const esAutor = resena.usuarioId.equals(usuario._id);
         const esAdmin = usuario.rol === 'admin';
         if (!esAutor && !esAdmin) {
-            throw new AppError('No tienes permiso para eliminar esta reseña.', 403);
+            throw new SinPermisoError('No tienes permiso para eliminar esta reseña.');
         }
 
         await this.#enTransaccion(async (session) => {
@@ -100,7 +100,7 @@ export default class ResenaService {
             // la que realmente borra sigue adelante. La otra responde 404 y no
             // duplica el registro de moderación.
             const borrada = await this.#resenaRepo.delete(resena._id, { session });
-            if (!borrada) throw new AppError('Reseña no encontrada.', 404);
+            if (!borrada) throw new NoEncontradoError('Reseña no encontrada.');
 
             await this.#reaccionRepo.deleteByResenas([resena._id], { session });
 
@@ -125,9 +125,9 @@ export default class ResenaService {
     // transacción que la reacción.
     async reaccionar(resenaId, tipo, usuario) {
         const resena = await this.#resenaRepo.findById(resenaId);
-        if (!resena) throw new AppError('Reseña no encontrada.', 404);
+        if (!resena) throw new NoEncontradoError('Reseña no encontrada.');
         if (resena.usuarioId.equals(usuario._id)) {
-            throw new AppError('No puedes reaccionar a tu propia reseña.', 403);
+            throw new SinPermisoError('No puedes reaccionar a tu propia reseña.');
         }
 
         return await this.#enTransaccion(async (session) => {
@@ -136,7 +136,7 @@ export default class ResenaService {
             let miReaccion = tipo;
 
             if (!existente) {
-                await this.#reaccionRepo.create(nuevaReaccion({ tipo }, usuario._id, resena._id), { session });
+                await this.#reaccionRepo.create(Reaccion.nueva({ tipo }, usuario._id, resena._id).aDocumento(), { session });
                 contadores[campoContador(tipo)] += 1;
             }
             else if (existente.tipo === tipo) {
@@ -153,7 +153,7 @@ export default class ResenaService {
             const actualizada = await this.#resenaRepo.incrementarContadores(resena._id, contadores, { session });
             await this.#ranking.recalcular(resena.restauranteId, { session });
 
-            return resenaPublica({ ...actualizada, miReaccion });
+            return Resena.desde({ ...actualizada, miReaccion }).aPublico();
         });
     }
 }

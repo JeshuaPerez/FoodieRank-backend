@@ -5,14 +5,14 @@
 //      npm run seed -- --reset  -> borra las colecciones y las vuelve a crear
 import { hashSync } from 'bcrypt';
 import env from '../src/config/env.js';
-import { pool, cerrarConexion } from '../src/config/db.js';
+import Database from '../src/config/db.js';
 import crearIndices from '../src/config/indexes.js';
-import { nuevoUsuario } from '../src/models/usuario.model.js';
-import { nuevaCategoria } from '../src/models/categoria.model.js';
-import { nuevoRestaurante } from '../src/models/restaurante.model.js';
-import { nuevoPlato } from '../src/models/plato.model.js';
-import { nuevaResena } from '../src/models/resena.model.js';
-import { nuevaReaccion } from '../src/models/reaccion.model.js';
+import Usuario from '../src/models/usuario.model.js';
+import Categoria from '../src/models/categoria.model.js';
+import Restaurante from '../src/models/restaurante.model.js';
+import Plato from '../src/models/plato.model.js';
+import Resena from '../src/models/resena.model.js';
+import Reaccion from '../src/models/reaccion.model.js';
 import UsuarioRepository from '../src/repositories/usuario.repository.js';
 import CategoriaRepository from '../src/repositories/categoria.repository.js';
 import RestauranteRepository from '../src/repositories/restaurante.repository.js';
@@ -122,7 +122,8 @@ const hace = (dias) => new Date(Date.now() - dias * 86400000);
 
 const sembrar = async () => {
     const reset = process.argv.includes('--reset');
-    const db = await pool();
+    const baseDeDatos = Database.obtenerInstancia();
+    const db = await baseDeDatos.conectar();
 
     if (reset) {
         for (const nombre of COLECCIONES) {
@@ -144,11 +145,11 @@ const sembrar = async () => {
     // Administrador
     let admin = await usuarioRepo.findByEmail(env.admin.email);
     if (!admin) {
-        admin = await usuarioRepo.create(nuevoUsuario({
+        admin = await usuarioRepo.create(Usuario.nuevo({
             nombre: env.admin.nombre,
             email: env.admin.email,
             password: hashSync(env.admin.password, env.bcryptRondas)
-        }, 'admin'));
+        }, 'admin').aDocumento());
         console.log(`|--> Administrador creado: ${env.admin.email}`);
     }
     else console.log(`|--> El administrador ${env.admin.email} ya existía.`);
@@ -158,10 +159,10 @@ const sembrar = async () => {
     for (const datos of USUARIOS) {
         let usuario = await usuarioRepo.findByEmail(datos.email);
         if (!usuario) {
-            usuario = await usuarioRepo.create(nuevoUsuario({
+            usuario = await usuarioRepo.create(Usuario.nuevo({
                 ...datos,
                 password: hashSync(datos.password, env.bcryptRondas)
-            }));
+            }).aDocumento());
         }
         usuarios.set(datos.email, usuario);
     }
@@ -170,9 +171,9 @@ const sembrar = async () => {
     // Categorías
     const categorias = new Map();
     for (const datos of CATEGORIAS) {
-        const documento = nuevaCategoria(datos);
+        const documento = Categoria.nueva(datos);
         let categoria = await categoriaRepo.findByNombre(documento.nombreNormalizado);
-        if (!categoria) categoria = await categoriaRepo.create(documento);
+        if (!categoria) categoria = await categoriaRepo.create(documento.aDocumento());
         categorias.set(datos.nombre, categoria);
     }
     console.log(`|--> ${categorias.size} categorías listas.`);
@@ -180,20 +181,20 @@ const sembrar = async () => {
     // Restaurantes y platos, creados por el admin y ya aprobados
     const restaurantes = new Map();
     for (const datos of RESTAURANTES) {
-        const documento = nuevoRestaurante(
+        const documento = Restaurante.nuevo(
             { ...datos, categoriaId: categorias.get(datos.categoria)._id },
             admin._id,
             true
         );
 
         let restaurante = await restauranteRepo.findByNombre(documento.nombreNormalizado);
-        if (!restaurante) restaurante = await restauranteRepo.create(documento);
+        if (!restaurante) restaurante = await restauranteRepo.create(documento.aDocumento());
         restaurantes.set(datos.nombre, restaurante);
 
         for (const plato of datos.platos) {
-            const platoDoc = nuevoPlato(plato, restaurante._id, admin._id, true);
+            const platoDoc = Plato.nuevo(plato, restaurante._id, admin._id, true);
             const existe = await platoRepo.findByNombreEnRestaurante(restaurante._id, platoDoc.nombreNormalizado);
-            if (!existe) await platoRepo.create(platoDoc);
+            if (!existe) await platoRepo.create(platoDoc.aDocumento());
         }
     }
     console.log(`|--> ${restaurantes.size} restaurantes con sus platos listos.`);
@@ -207,7 +208,7 @@ const sembrar = async () => {
         let resena = await resenaRepo.findByUsuarioYRestaurante(autor._id, restaurante._id);
         if (!resena) {
             resena = await resenaRepo.create({
-                ...nuevaResena({ comentario, calificacion }, autor._id, restaurante._id),
+                ...Resena.nueva({ comentario, calificacion }, autor._id, restaurante._id).aDocumento(),
                 creadoEn: hace(dias)
             });
         }
@@ -224,7 +225,7 @@ const sembrar = async () => {
         const existe = await reaccionRepo.findByUsuarioYResena(usuario._id, resena._id);
         if (existe) continue;
 
-        await reaccionRepo.create(nuevaReaccion({ tipo }, usuario._id, resena._id));
+        await reaccionRepo.create(Reaccion.nueva({ tipo }, usuario._id, resena._id).aDocumento());
         await resenaRepo.incrementarContadores(resena._id, {
             likes: tipo === 'like' ? 1 : 0,
             dislikes: tipo === 'dislike' ? 1 : 0
@@ -243,11 +244,11 @@ const sembrar = async () => {
     console.log(`|--> Admin: ${env.admin.email} / ${env.admin.password}`);
     console.log('|--> Usuarios de prueba: juan@foodierank.com, camila@foodierank.com, andres@foodierank.com (contraseña Usuario123)');
 
-    await cerrarConexion();
+    await baseDeDatos.cerrar();
 };
 
 sembrar().catch(async (error) => {
     console.error(`|--> Error en el seed: ${error.message}`);
-    await cerrarConexion().catch(() => {});
+    await Database.obtenerInstancia().cerrar().catch(() => {});
     process.exit(1);
 });
