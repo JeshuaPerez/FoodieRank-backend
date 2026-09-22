@@ -92,13 +92,13 @@ El archivo `.env` no se sube al repositorio; `.env.example` sí, sin valores rea
 ```
 src/
 ├── config/          env, conexión, índices, passport y swagger
-├── models/          forma de cada documento, normalización y qué se expone
+├── models/          clases entidad: forma del documento, factory y DTO de salida
 ├── repositories/    acceso a datos sobre el driver de MongoDB
 ├── services/        reglas de negocio y transacciones
 ├── controllers/     reciben req/res y delegan al servicio
 ├── routes/          endpoints con sus validadores
 ├── middlewares/     auth, errores, validación, rate limit y versión
-├── utils/           AppError, formato de respuesta, texto y transacciones
+├── utils/           jerarquía de errores, formato de respuesta, texto y transacciones
 ├── app.js           monta Express y los middlewares
 └── server.js        conecta a Mongo, crea índices y abre el puerto
 scripts/
@@ -129,23 +129,29 @@ una transacción. Es también la razón de que exista esta carpeta, que no está
 la lista de la guía: sin ella, cada servicio tendría el driver de MongoDB
 incrustado.
 
-**DTO.** Sin mongoose, cada archivo de `models/` define la forma del documento,
-sus valores por defecto y la normalización previa al guardado. Las funciones
-`usuarioPublico`, `restaurantePublico`, `resenaPublica` y sus hermanas son los
-DTO de salida: deciden qué campos viajan al cliente. La contraseña no está en
-ninguna de esas listas.
+**DTO.** Sin mongoose, cada archivo de `models/` es una **clase entidad**:
+`Usuario`, `Categoria`, `Restaurante`, `Plato`, `Resena` y `Reaccion`. Cada una
+define la forma del documento en su constructor y expone tres métodos:
+`aDocumento()` devuelve lo que se guarda, `aPublico()` es el DTO de salida que
+decide qué campos viajan al cliente, y las reglas propias de la entidad viven
+como métodos —`esVisiblePara()`, `esAdmin()`, `esDe()`—. La contraseña no está
+en ningún `aPublico()`.
 
-**Factory.** Las funciones que construyen y devuelven algo ya configurado:
-`crearApp(db, client)` arma la aplicación, `crearRutas(db, client)` arma la
-cadena completa de repositorios, servicios y controladores, cada
-`crear*Router(controlador)` arma su router, y `crearTransaccion(client)` devuelve
-la función que ejecuta algo dentro de una transacción. Del lado de los datos,
-`nuevoUsuario`, `nuevaResena` y compañía construyen el documento con sus valores
-por defecto.
+**Factory.** Los métodos estáticos que construyen entidades ya normalizadas:
+`Usuario.nuevo()`, `Restaurante.nuevo()`, `Resena.nueva()` y sus hermanos, más
+`Entidad.desde(documento)`, que hidrata un documento de la base y devuelve
+`null` si no hay documento. Del lado de la aplicación, las funciones que
+construyen y devuelven algo ya configurado: `crearApp(db, client)` arma la
+aplicación, `crearRutas(db, client)` arma la cadena completa de repositorios,
+servicios y controladores, cada `crear*Router(controlador)` arma su router, y
+`crearTransaccion(client)` devuelve la función que ejecuta algo dentro de una
+transacción.
 
-**Singleton de módulo.** `config/db.js` crea un único `MongoClient` y `config/env.js`
-lee el `.env` una sola vez. Todo el proyecto comparte esas dos instancias sin
-volver a conectarse ni a leer variables.
+**Singleton.** `config/db.js` es la clase `Database` con una instancia estática
+privada: el constructor devuelve siempre la misma, y `Database.obtenerInstancia()`
+es el punto de acceso. Toda la aplicación comparte un único `MongoClient`, sin
+volver a conectarse. `config/env.js` hace lo propio con el `.env`, que se lee una
+sola vez al cargar el módulo.
 
 ### Además
 
@@ -155,10 +161,19 @@ servicios → controladores. Ningún módulo abre la suya ni la busca en un glob
 y `app.js` se puede montar en pruebas sin levantar el puerto. `routes/index.js`
 es el único archivo que instancia clases.
 
-**Errores centralizados.** Los servicios lanzan `AppError(mensaje, codigo)` y un
-único middleware al final de la cadena lo traduce a respuesta HTTP. Express 5
-reenvía también los errores de los handlers `async`, así que no hace falta
-`try/catch` en cada ruta.
+**Errores centralizados.** `utils/errores.js` define una jerarquía de clases
+sobre `AppError`: `NoEncontradoError` (404), `ConflictoError` (409),
+`SinPermisoError` (403), `NoAutenticadoError` (401), `DatosInvalidosError` (400)
+y las demás. Cada clase fija su propio código HTTP, así que los servicios lanzan
+el error por su nombre y no cargan números sueltos.
+
+La clase `ManejadorDeErrores`, al final de la cadena de middlewares, traduce
+cualquier error a respuesta HTTP. Primero convierte los errores ajenos —índice
+único violado, cuerpo ilegible, caída del driver— en errores de la aplicación, y
+después responde una sola vez. Lo que no reconoce es un fallo inesperado: se
+registra en consola y al cliente le llega un 500 genérico, sin detalles
+internos. Express 5 reenvía también los errores de los handlers `async`, así que
+no hace falta `try/catch` en cada ruta.
 
 **Validación en el borde.** `express-validator` corre en la definición de cada
 ruta, antes del controlador, y un middleware convierte sus errores en un 400 con
