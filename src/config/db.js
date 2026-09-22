@@ -1,35 +1,64 @@
-// Conexión única al motor de base de datos. El cliente se expone porque las
-// transacciones necesitan abrir sesiones sobre él.
 import { MongoClient } from 'mongodb';
 import env from './env.js';
 
-// Sin este límite el driver espera 30 segundos antes de rendirse, y durante una
-// caída de red cada petición se queda colgada todo ese tiempo. El reintento
-// automático de lecturas y escrituras viene activado por defecto.
-const client = new MongoClient(env.mongodbUri, {
-    serverSelectionTimeoutMS: env.serverSelectionTimeoutMS
-});
-let db = null;
+// Singleton: toda la aplicación comparte una sola conexión. El constructor
+// devuelve siempre la misma instancia, así que da igual desde dónde se pida.
+export default class Database {
+    static #instancia = null;
 
-const pool = async () => {
-    try {
-        await client.connect();
-        db = client.db(env.dbName);
-        console.log(`|--> Conexión con la base de datos ${env.dbName.toUpperCase()} establecida exitosamente!`);
-        return db;
+    #client;
+    #db = null;
+
+    constructor() {
+        if (Database.#instancia) return Database.#instancia;
+
+        // Sin este límite el driver espera 30 segundos antes de rendirse, y
+        // durante una caída de red cada petición se queda colgada todo ese
+        // tiempo. El reintento de lecturas y escrituras viene activado por defecto.
+        this.#client = new MongoClient(env.mongodbUri, {
+            serverSelectionTimeoutMS: env.serverSelectionTimeoutMS
+        });
+
+        Database.#instancia = this;
     }
-    catch (error) {
-        console.error(`|--> Error al intentar conectarse a la base de datos ${env.dbName.toUpperCase()}: ${error.message}`);
-        throw error;
+
+    // Punto de acceso del patrón: crea la instancia la primera vez y la reutiliza
+    static obtenerInstancia() {
+        return Database.#instancia ?? new Database();
     }
-};
 
-const getClient = () => client;
+    get conectada() {
+        return this.#db !== null;
+    }
 
-const cerrarConexion = async () => {
-    await client.close();
-    db = null;
-    console.log('|--> Conexión con la base de datos cerrada.');
-};
+    async conectar() {
+        if (this.#db) return this.#db;
 
-export { pool, getClient, cerrarConexion };
+        try {
+            await this.#client.connect();
+            this.#db = this.#client.db(env.dbName);
+            console.log(`|--> Conexión con la base de datos ${env.dbName.toUpperCase()} establecida exitosamente!`);
+            return this.#db;
+        }
+        catch (error) {
+            console.error(`|--> Error al intentar conectarse a la base de datos ${env.dbName.toUpperCase()}: ${error.message}`);
+            throw error;
+        }
+    }
+
+    obtenerDb() {
+        if (!this.#db) throw new Error('|--> La base de datos no está conectada. Llama a conectar() primero.');
+        return this.#db;
+    }
+
+    // El cliente se expone porque las transacciones abren sesiones sobre él
+    obtenerCliente() {
+        return this.#client;
+    }
+
+    async cerrar() {
+        await this.#client.close();
+        this.#db = null;
+        console.log('|--> Conexión con la base de datos cerrada.');
+    }
+}
