@@ -6,6 +6,7 @@ export default class ResenaController {
     constructor(resenaService) {
         this.#resenaService = resenaService;
         this.listarPorRestaurante = this.listarPorRestaurante.bind(this);
+        this.exportarCsv = this.exportarCsv.bind(this);
         this.crear = this.crear.bind(this);
         this.actualizar = this.actualizar.bind(this);
         this.eliminar = this.eliminar.bind(this);
@@ -15,6 +16,11 @@ export default class ResenaController {
     async listarPorRestaurante(req, res) {
         const resenas = await this.#resenaService.listarPorRestaurante(req.params.id, req.usuario);
         enviar(res, 200, 'Reseñas obtenidas.', resenas);
+    }
+
+    async exportarCsv(req, res) {
+        const resultado = await this.#resenaService.exportarCsv(req.params.id);
+        enviar(res, 200, `Archivo CSV generado con ${resultado.totalResenas} reseña(s).`, resultado);
     }
 
     async crear(req, res) {

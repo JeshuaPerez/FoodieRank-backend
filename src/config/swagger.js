@@ -507,6 +507,25 @@ const documento = {
                 }
             }
         },
+        '/restaurantes/{id}/resenas/exportar': {
+            get: {
+                tags: ['Reseñas'],
+                summary: 'Exportar a CSV las reseñas de un restaurante',
+                description: 'Genera un archivo CSV (Comentario, Calificación, Autor, Fecha) con todas las reseñas del restaurante y lo guarda en la carpeta /exports del backend.',
+                parameters: [parametroId],
+                responses: {
+                    200: respuesta('Archivo CSV generado', {
+                        type: 'object',
+                        properties: {
+                            archivo: { type: 'string', example: 'resenas-66e2a1b4c8d9e0f1a2b3c4d5-1758562345678.csv' },
+                            ruta: { type: 'string', example: 'exports/resenas-66e2a1b4c8d9e0f1a2b3c4d5-1758562345678.csv' },
+                            totalResenas: { type: 'integer', example: 12 }
+                        }
+                    }),
+                    404: error('No existe', 'Restaurante no encontrado.')
+                }
+            }
+        },
         '/platos/{id}': {
             get: {
                 tags: ['Platos'],

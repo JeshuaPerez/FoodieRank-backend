@@ -1,6 +1,9 @@
 # Dependencias de Node (creadas al hacer npm install)
 node_modules/
 
+# Archivos generados por la exportación de reseñas a CSV
+exports/
+
 # Variables de entorno y credenciales
 .env
 .env.*

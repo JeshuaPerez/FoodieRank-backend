@@ -62,6 +62,8 @@ const crearRestauranteRouter = (controller, platoController, resenaController) =
     router.get('/:id/platos', optionalAuth, validarId, validar, platoController.listarPorRestaurante);
     router.post('/:id/platos', requireAuth, validarPlato, validar, platoController.crear);
     router.get('/:id/resenas', optionalAuth, validarId, validar, resenaController.listarPorRestaurante);
+    // Reporte interno: exporta las reseñas del restaurante a un CSV en /exports
+    router.get('/:id/resenas/exportar', validarId, validar, resenaController.exportarCsv);
 
     return router;
 };
