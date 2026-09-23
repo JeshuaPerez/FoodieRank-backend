@@ -15,7 +15,9 @@ const crearIndices = async (db) => {
         // Una sola reacción activa por usuario y reseña
         db.collection('reacciones').createIndex({ usuarioId: 1, resenaId: 1 }, { unique: true }),
         // Se crea aquí para que exista antes de usarla dentro de una transacción
-        db.collection('moderaciones').createIndex({ fecha: -1 })
+        db.collection('moderaciones').createIndex({ fecha: -1 }),
+        // === Resolución de examen: un mismo favorito no se repite por usuario ===
+        db.collection('favoritos').createIndex({ usuarioId: 1, tipo: 1, referenciaId: 1 }, { unique: true })
     ]);
     console.log('|--> Índices verificados.');
 };
