@@ -1,0 +1,43 @@
+Archivos que modifique o agregue:
+ 
+ src/config/indexes.js
+
+ Cree y agregue un nuevo indice en la base de 
+ datos para tener un mejor control de lo que 
+ el usuario puede agregar como favorito.
+
+ src/controllers/favorito.controller.js
+
+ Se agrego un controlador para el manejo de errores
+ a travez de clases, constructores, funcion asincronas
+ para asi ver como responde un JSON en vez de un mensaje
+
+ src/models/favorito.model.js
+
+ Relación usuario–favorito. Una sola 
+ colección para restaurantes y platos, el
+ campo tipo indica a cuál de las dos 
+ apunta referenciaId.
+
+ src/repositories/favorito.repository.js
+
+ Busca en la base de datos la craecion en la 
+ que el usuario creo su restaurante y platillo 
+ favorito, y que responder al usuario cuando este
+ lo elimine.
+
+ src/routes/favorito.router.js 
+ 
+ Este documento es el encargado de que se valide
+ en una sola sesion por usuario, y que cuando el 
+ usuario cree una seccion de favoritos sea un 
+ unico dueño.
+
+ src/routes/index.js 
+
+ encargado de importar y crear los nuevos 
+ favoritos de los usuarios. 
+
+ src/services/favorito.service.js
+
+ modelado de errores         

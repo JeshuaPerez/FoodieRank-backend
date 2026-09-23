@@ -1,6 +1,4 @@
 // === Resolución de examen: entidad Favorito ===
-// Relación usuario–favorito. Una sola colección para restaurantes y platos: el
-// campo tipo indica a cuál de las dos apunta referenciaId.
 export default class Favorito {
     static TIPOS = ['restaurante', 'plato'];
 
