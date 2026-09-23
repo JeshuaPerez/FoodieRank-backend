@@ -3,7 +3,7 @@ import Database from './config/db.js';
 import crearIndices from './config/indexes.js';
 import crearApp from './app.js';
 
-// Si el cierre se queda esperando conexiones abiertas, se fuerza la salida
+// Si el cierre se queda esperando conexiones abiertas, se fuerza la salida y todo termina
 const ESPERA_MAXIMA_DE_CIERRE_MS = 10000;
 
 const iniciar = async () => {
