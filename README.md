@@ -466,5 +466,8 @@ fetch(url, { method: 'POST', body: new URLSearchParams(new FormData(formulario))
 
 ## Créditos
 
-Backend: **Jeshua Perez**, **Juan Lema**.
-Proyecto académico — API de calificación y ranking de restaurantes.
+Proyecto académico desarrollado en equipo por **Jeshua Pérez** y **Juan Lema**,
+con metodología Scrum. El trabajo de backend y frontend fue compartido entre
+ambos.
+
+API de calificación y ranking de restaurantes.
